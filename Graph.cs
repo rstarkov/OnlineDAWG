@@ -14,10 +14,10 @@ using System.Linq;
 
 namespace OnlineDAWG
 {
-    public partial class Graph
+    public partial class DawgGraph
     {
-        private Node _starting = new Node(0);
-        private NodeHashTable _nodes = new NodeHashTable();
+        private DawgNode _starting = new DawgNode(0);
+        private DawgHashTable _nodes = new DawgHashTable();
 
         public int WordCount { get; private set; }
         public int NodeCount { get { return _nodes.Count() + 2; } }
@@ -137,9 +137,9 @@ namespace OnlineDAWG
             return node.Accepting;
         }
 
-        private Node duplicate(Node node, string path, int from)
+        private DawgNode duplicate(DawgNode node, string path, int from)
         {
-            var result = new Node(node.Ns.Length) { Hash = node.Hash };
+            var result = new DawgNode(node.Ns.Length) { Hash = node.Hash };
             for (int i = 0; i < node.Ns.Length; i++)
             {
                 result.Cs[i] = node.Cs[i];
@@ -153,7 +153,7 @@ namespace OnlineDAWG
             return result;
         }
 
-        private void dereference(Node node)
+        private void dereference(DawgNode node)
         {
             node.RefCount--;
             if (node.RefCount < 0)
@@ -167,16 +167,16 @@ namespace OnlineDAWG
             }
         }
 
-        private Node addNew(string value, int from)
+        private DawgNode addNew(string value, int from)
         {
             if (from == value.Length)
-                return new Node(0) { Accepting = true, Hash = 2166136261 };
+                return new DawgNode(0) { Accepting = true, Hash = 2166136261 };
             var hash = FnvHash(value, from);
             foreach (var n in _nodes.GetValuesApprox(hash))
                 if (n.Hash == hash && n.MatchesOnly(value, from))
                     return n;
 
-            var node = new Node(1) { Hash = hash };
+            var node = new DawgNode(1) { Hash = hash };
             node.Cs[0] = value[from];
             node.Ns[0] = addNew(value, from + 1);
             node.Ns[0].RefCount++;
@@ -184,9 +184,9 @@ namespace OnlineDAWG
             return node;
         }
 
-        public Node MergeEndingNode()
+        public DawgNode MergeEndingNode()
         {
-            var node = new Node(0) { Accepting = true };
+            var node = new DawgNode(0) { Accepting = true };
             _starting.MergeEndingNode(node);
             return node;
         }
@@ -269,10 +269,10 @@ namespace OnlineDAWG
             stream.WriteByte((byte) val);
         }
 
-        public Node[] GetNodes()
+        public DawgNode[] GetNodes()
         {
-            var allnodes = new HashSet<Node>();
-            var queue = new Queue<Node>();
+            var allnodes = new HashSet<DawgNode>();
+            var queue = new Queue<DawgNode>();
             queue.Enqueue(_starting);
             while (queue.Any())
             {
@@ -286,210 +286,5 @@ namespace OnlineDAWG
             }
             return allnodes.ToArray();
         }
-    }
-
-    public class Node
-    {
-        public Node[] Ns;
-        public char[] Cs;
-        public bool Accepting;
-        public int RefCount;
-        public uint Hash = 0;
-
-        public Node(int blanks)
-        {
-            Ns = new Node[blanks];
-            Cs = new char[blanks];
-        }
-
-        public bool IsBlank()
-        {
-            return Ns.Length == 0;
-        }
-
-        public bool MatchesOnly(string value, int from)
-        {
-            var node = this;
-            for (; from < value.Length; from++)
-            {
-                if (node.Ns.Length != 1) return false;
-                if (node.Cs[0] != value[from]) return false;
-                node = node.Ns[0];
-            }
-            return node.Accepting && node.IsBlank();
-        }
-
-        public bool MatchesSame(Node other)
-        {
-            if (Accepting != other.Accepting)
-                return false;
-            return matchesHelper(other);
-        }
-
-        public bool MatchesSameWithAdd(string add, int from, Node other)
-        {
-            if ((Accepting || from == add.Length) != other.Accepting)
-                return false;
-            if (from == add.Length)
-                return matchesHelper(other);
-            if (this.Ns.Length < other.Ns.Length - 1 || this.Ns.Length > other.Ns.Length)
-                return false;
-
-            // Shallow test to make sure the characters match
-            char c = add[from];
-            bool had = false;
-            int t, o;
-            for (t = o = 0; t < this.Cs.Length && o < other.Cs.Length; t++, o++)
-            {
-                if (other.Cs[o] == c)
-                {
-                    had = true;
-                    if (this.Cs[t] != c)
-                        t--;
-                }
-                else if (this.Cs[t] == c)
-                    return false;
-                else if (this.Cs[t] != other.Cs[o])
-                    return false;
-            }
-            if (!had && (t != this.Cs.Length || o != other.Cs.Length - 1 || c != other.Cs[o]))
-                return false;
-
-            // Deep test to ensure that the nodes match
-            had = false;
-            for (t = o = 0; t < this.Cs.Length && o < other.Cs.Length; t++, o++)
-            {
-                if (other.Cs[o] == c)
-                {
-                    had = true;
-                    if (this.Cs[t] == c)
-                    {
-                        if (!this.Ns[t].MatchesSameWithAdd(add, from + 1, other.Ns[o]))
-                            return false;
-                    }
-                    else
-                    {
-                        if (!other.Ns[o].MatchesOnly(add, from + 1))
-                            return false;
-                        t--;
-                    }
-                }
-                else if (this.Cs[t] == other.Cs[o])
-                    if (!this.Ns[t].MatchesSame(other.Ns[o]))
-                        return false;
-            }
-            if (!had)
-                if (!other.Ns[o].MatchesOnly(add, from + 1))
-                    return false;
-
-            return true;
-        }
-
-        private bool matchesHelper(Node other)
-        {
-            if (this.Ns.Length != other.Ns.Length)
-                return false;
-            for (int i = 0; i < Ns.Length; i++)
-                if (this.Cs[i] != other.Cs[i])
-                    return false;
-            for (int i = 0; i < Ns.Length; i++)
-                if (!this.Ns[i].MatchesSame(other.Ns[i]))
-                    return false;
-            return true;
-        }
-
-        public override string ToString()
-        {
-            return "Node: " + string.Join("|", Suffixes().Select(s => s == "" ? "<acc>" : s));
-        }
-
-        public IEnumerable<string> Suffixes()
-        {
-            return suffixes("");
-        }
-
-        private IEnumerable<string> suffixes(string prefix)
-        {
-            if (Accepting)
-                yield return prefix;
-            for (int i = 0; i < Ns.Length; i++)
-                foreach (var suf in Ns[i].suffixes(prefix + Cs[i]))
-                    yield return suf;
-        }
-
-        public void MergeEndingNode(Node endingNode)
-        {
-            for (int i = 0; i < Ns.Length; i++)
-                if (Ns[i].IsBlank())
-                {
-                    if (Ns[i] != endingNode)
-                        endingNode.RefCount++;
-                    Ns[i] = endingNode;
-                }
-                else
-                    Ns[i].MergeEndingNode(endingNode);
-        }
-
-        public void InsertBlankAt(int pos)
-        {
-            var newNs = new Node[Ns.Length + 1];
-            Array.Copy(Ns, newNs, pos);
-            Array.Copy(Ns, pos, newNs, pos + 1, Ns.Length - pos);
-            Ns = newNs;
-            var newCs = new char[Cs.Length + 1];
-            Array.Copy(Cs, newCs, pos);
-            Array.Copy(Cs, pos, newCs, pos + 1, Cs.Length - pos);
-            Cs = newCs;
-        }
-
-        public int AppendBlank()
-        {
-            var newNs = new Node[Ns.Length + 1];
-            Array.Copy(Ns, newNs, Ns.Length);
-            Ns = newNs;
-            var newCs = new char[Cs.Length + 1];
-            Array.Copy(Cs, newCs, Cs.Length);
-            Cs = newCs;
-            return Ns.Length - 1;
-        }
-    }
-
-    class NodeHashTable : IEnumerable<Node>
-    {
-        private LinkedList<Node>[] _table = new LinkedList<Node>[65536];
-
-        public void Add(Node value)
-        {
-            int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
-            if (_table[index] == null)
-                _table[index] = new LinkedList<Node>();
-            _table[index].AddFirst(value);
-        }
-
-        public void Remove(Node value)
-        {
-            int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
-            if (_table[index] == null)
-                return;
-            _table[index].Remove(value);
-            if (_table[index].Count == 0)
-                _table[index] = null;
-        }
-
-        private static LinkedList<Node> _empty = new LinkedList<Node>();
-
-        public IEnumerable<Node> GetValuesExact(uint hash)
-        {
-            return GetValuesApprox(hash).Where(n => n.Hash == hash);
-        }
-
-        public LinkedList<Node> GetValuesApprox(uint hash)
-        {
-            int index = (int) ((hash ^ (hash >> 16)) & 0xFFFF);
-            return _table[index] == null ? _empty : _table[index];
-        }
-
-        public IEnumerator<Node> GetEnumerator() { return _table.Where(r => r != null).SelectMany(r => r).GetEnumerator(); }
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
     }
 }

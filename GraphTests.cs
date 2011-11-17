@@ -13,7 +13,7 @@ using System.Linq;
 
 namespace OnlineDAWG
 {
-    partial class Graph
+    partial class DawgGraph
     {
         /// <summary>
         /// Performs various self-tests on the current DAWG. This method is very slow.
@@ -41,7 +41,7 @@ namespace OnlineDAWG
                     yield return new Tuple<T, T>(arr[i], arr[j]);
         }
 
-        private void verifyNode(Node node)
+        private void verifyNode(DawgNode node)
         {
             if (node == null)
                 throw new Exception("Null node!");
