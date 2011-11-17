@@ -1,14 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Diagnostics;
-using RT.Util.ExtensionMethods;
-using System.IO;
+﻿// Copyright 2011 Roman Starkov
+// This file is part of OnlineDAWG: https://bitbucket.org/rstarkov/onlinedawg
+///
+// OnlineDAWG can be redistributed and/or modified under the terms of the GNU General Public License as published by the
+// Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-namespace ZoneFile
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace OnlineDAWG
 {
-    partial class Graph
+    public partial class Graph
     {
         private Node _starting = new Node(0);
         private NodeHashTable _nodes = new NodeHashTable();
@@ -16,6 +22,10 @@ namespace ZoneFile
         public int WordCount { get; private set; }
         public int NodeCount { get { return _nodes.Count() + 2; } }
 
+        /// <summary>
+        /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
+        /// is already present; filter out any duplicates using the <see cref="Contains"/> method.
+        /// </summary>
         public void Add(string value)
         {
             var node = _starting;
@@ -101,9 +111,11 @@ namespace ZoneFile
             }
 
             WordCount++;
-            //Verify();
         }
 
+        /// <summary>
+        /// Queries the DAWG to see if it contains the specified value.
+        /// </summary>
         public bool Contains(string value)
         {
             var node = _starting;
@@ -179,7 +191,7 @@ namespace ZoneFile
             return node;
         }
 
-        public static uint FnvHash(string str, int from = 0)
+        private static uint FnvHash(string str, int from = 0)
         {
             uint hash = 2166136261;
             for (int i = from; i < str.Length; i++)
@@ -187,66 +199,77 @@ namespace ZoneFile
             return hash;
         }
 
-        private static uint _unique;
-        public void UniqueIdIntoHash()
-        {
-            _unique = 0;
-            resetHashes(_starting);
-            assignIds(_starting);
-        }
-
-        private void resetHashes(Node node)
-        {
-            node.Hash = 0;
-            foreach (var n in node.Ns)
-                resetHashes(n);
-        }
-
-        private void assignIds(Node node)
-        {
-            _unique++;
-            node.Hash = _unique;
-            foreach (var n in node.Ns)
-                if (n.Hash == 0)
-                    assignIds(n);
-        }
-
-        public void Save(Stream stream)
-        {
-            var nodes = AllNodes().OrderByDescending(n => n.RefCount).ToArray();
-            var chars = new Dictionary<char, int>();
-            for (int i = 0; i < nodes.Length; i++)
-            {
-                nodes[i].Hash = (uint) i;
-                foreach (var c in nodes[i].Cs)
-                    chars.IncSafe(c);
-            }
-            var charset = chars.OrderByDescending(kvp => kvp.Value).Select(kvp => kvp.Key).ToArray();
-
-            using (var bw = new BinaryWriter(stream))
-            {
-                stream.WriteUInt32Optim((uint) charset.Length);
-                foreach (var c in charset)
-                    stream.WriteUInt32Optim(c);
-                stream.WriteUInt32Optim(_starting.Hash);
-                foreach (var node in nodes)
-                {
-                    stream.WriteInt32Optim(node.Accepting ? node.Ns.Length : -node.Ns.Length);
-                    foreach (var c in node.Cs)
-                        stream.WriteUInt32Optim((uint) charset.IndexOf(c));
-                    foreach (var n in node.Ns)
-                        stream.WriteUInt32Optim(n.Hash);
-                }
-            }
-        }
-
+        /// <summary>
+        /// Saves the DAWG in binary format to a file at the specified location.
+        /// </summary>
         public void Save(string path)
         {
             using (var s = File.Open(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read))
                 Save(s);
         }
 
-        public Node[] AllNodes()
+        /// <summary>
+        /// Saves the DAWG in binary format to the specified stream.
+        /// </summary>
+        public void Save(Stream stream)
+        {
+            var nodes = GetNodes().OrderByDescending(n => n.RefCount).ToArray();
+            var chars = new Dictionary<char, int>();
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                nodes[i].Hash = (uint) i;
+                foreach (var c in nodes[i].Cs)
+                    if (chars.ContainsKey(c))
+                        chars[c]++;
+                    else
+                        chars[c] = 1;
+            }
+            var charset = chars.OrderByDescending(kvp => kvp.Value).Select(kvp => kvp.Key).ToArray();
+
+            using (var bw = new BinaryWriter(stream))
+            {
+                optimWriteU(stream, (uint) charset.Length);
+                foreach (var c in charset)
+                    optimWriteU(stream, c);
+                optimWriteU(stream, _starting.Hash);
+                foreach (var node in nodes)
+                {
+                    optimWriteS(stream, node.Accepting ? node.Ns.Length : -node.Ns.Length);
+                    foreach (var c in node.Cs)
+                    {
+                        int f = 0;
+                        for (; f < charset.Length; f++)
+                            if (charset[f] == c)
+                                break;
+                        optimWriteU(stream, (uint) f);
+                    }
+                    foreach (var n in node.Ns)
+                        optimWriteU(stream, n.Hash);
+                }
+            }
+        }
+
+        private static void optimWriteS(Stream stream, int val)
+        {
+            while (val < -64 || val > 63)
+            {
+                stream.WriteByte((byte) (val | 128));
+                val >>= 7;
+            }
+            stream.WriteByte((byte) (val & 127));
+        }
+
+        private static void optimWriteU(Stream stream, uint val)
+        {
+            while (val >= 128)
+            {
+                stream.WriteByte((byte) (val | 128));
+                val >>= 7;
+            }
+            stream.WriteByte((byte) val);
+        }
+
+        public Node[] GetNodes()
         {
             var allnodes = new HashSet<Node>();
             var queue = new Queue<Node>();
@@ -257,13 +280,15 @@ namespace ZoneFile
                 if (allnodes.Contains(n))
                     continue;
                 allnodes.Add(n);
-                queue.EnqueueRange(n.Ns.Where(nd => !allnodes.Contains(nd)));
+                foreach (var nn in n.Ns)
+                    if (!allnodes.Contains(nn))
+                        queue.Enqueue(nn);
             }
             return allnodes.ToArray();
         }
     }
 
-    class Node
+    public class Node
     {
         public Node[] Ns;
         public char[] Cs;
@@ -375,7 +400,7 @@ namespace ZoneFile
 
         public override string ToString()
         {
-            return "Node: " + Suffixes().Select(s => s == "" ? "<acc>" : s).JoinString("|");
+            return "Node: " + string.Join("|", Suffixes().Select(s => s == "" ? "<acc>" : s));
         }
 
         public IEnumerable<string> Suffixes()
@@ -431,7 +456,7 @@ namespace ZoneFile
 
     class NodeHashTable : IEnumerable<Node>
     {
-        private LinkedList<Node>[] _table = new LinkedList<Node>[65536]; // OPT: tweak size
+        private LinkedList<Node>[] _table = new LinkedList<Node>[65536];
 
         public void Add(Node value)
         {
@@ -447,7 +472,7 @@ namespace ZoneFile
             if (_table[index] == null)
                 return;
             _table[index].Remove(value);
-            if (_table[index].Count == 0) // OPT: see if removing this helps
+            if (_table[index].Count == 0)
                 _table[index] = null;
         }
 

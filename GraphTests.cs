@@ -1,18 +1,28 @@
-﻿using System;
+﻿// Copyright 2011 Roman Starkov
+// This file is part of OnlineDAWG: https://bitbucket.org/rstarkov/onlinedawg
+///
+// OnlineDAWG can be redistributed and/or modified under the terms of the GNU General Public License as published by the
+// Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+// warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using RT.Util.ExtensionMethods;
 
-namespace ZoneFile
+namespace OnlineDAWG
 {
     partial class Graph
     {
+        /// <summary>
+        /// Performs various self-tests on the current DAWG. This method is very slow.
+        /// </summary>
         public void Verify()
         {
             foreach (var grp in _nodes.GroupBy(n => n.Hash))
             {
-                foreach (var pair in grp.UniquePairs())
+                foreach (var pair in uniquePairs(grp))
                     if (pair.Item1 == (object) pair.Item2)
                         throw new Exception("Duplicate nodes");
                     else if (pair.Item1.MatchesSame(pair.Item2))
@@ -21,20 +31,14 @@ namespace ZoneFile
             if (_nodes.Contains(_starting))
                 throw new Exception("Starting node is in hash table!");
             verifyNode(_starting);
+        }
 
-            // the following test currently only succeeds after merging ending nodes
-            //if (_nodes.Sum(n => n.Value.Count) + 2 != NodeCount)
-            //    throw new Exception("node count");
-
-            //var allnodes = AllNodes();
-
-            //if (allnodes.Count != _nodes.Count())
-            //    throw new Exception("node count 2");
-
-            //foreach (var pair in allnodes.UniquePairs())
-            //    if (!pair.Item1.IsBlank() && !pair.Item2.IsBlank())
-            //        if (pair.Item1.MatchesSame(pair.Item2))
-            //            throw new Exception("Not optimal 2");
+        private static IEnumerable<Tuple<T, T>> uniquePairs<T>(IEnumerable<T> source)
+        {
+            IList<T> arr = source as IList<T> ?? source.ToArray();
+            for (int i = 0; i < arr.Count - 1; i++)
+                for (int j = i + 1; j < arr.Count; j++)
+                    yield return new Tuple<T, T>(arr[i], arr[j]);
         }
 
         private void verifyNode(Node node)
