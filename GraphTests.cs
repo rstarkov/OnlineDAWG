@@ -26,17 +26,8 @@ namespace ZoneFile
             //if (_nodes.Sum(n => n.Value.Count) + 2 != NodeCount)
             //    throw new Exception("node count");
 
-            var allnodes = new List<Node>();
-            var queue = new Queue<Node>();
-            queue.Enqueue(_starting);
-            while (queue.Any())
-            {
-                var n = queue.Dequeue();
-                if (allnodes.Contains(n))
-                    continue;
-                allnodes.Add(n);
-                queue.EnqueueRange(n.Ns);
-            }
+            //var allnodes = AllNodes();
+
             //if (allnodes.Count != _nodes.Count())
             //    throw new Exception("node count 2");
 

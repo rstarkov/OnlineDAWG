@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using RT.Util.ExtensionMethods;
+using System.IO;
 
 namespace ZoneFile
 {
@@ -13,16 +14,14 @@ namespace ZoneFile
         private NodeHashTable _nodes = new NodeHashTable();
 
         public int WordCount { get; private set; }
-        //public int NodeCount { get { _starting.ResetHashCacheWithChildren(); var r = _starting.Count(); _starting.ResetHashCacheWithChildren(); return r; } }
+        public int NodeCount { get { return _nodes.Count() + 2; } }
 
         public void Add(string value)
         {
             var node = _starting;
             uint nexthash = 0;
-            for (int index = 1; index <= value.Length; index++)
+            for (int index = 1; index <= value.Length + 1; index++)
             {
-                char c = value[index - 1];
-
                 if (node != _starting)
                 {
                     if (!node.IsBlank())
@@ -30,6 +29,14 @@ namespace ZoneFile
                     node.Hash ^= nexthash;
                     _nodes.Add(node);
                 }
+
+                if (index - 1 == value.Length)
+                {
+                    node.Accepting = true;
+                    break;
+                }
+
+                char c = value[index - 1];
 
                 int n = -1;
                 for (int i = 0; i < node.Cs.Length; i++)
@@ -97,13 +104,34 @@ namespace ZoneFile
             //Verify();
         }
 
+        public bool Contains(string value)
+        {
+            var node = _starting;
+            for (int index = 0; index < value.Length; index++)
+            {
+                char c = value[index];
+
+                for (int i = 0; i < node.Cs.Length; i++)
+                    if (node.Cs[i] == c)
+                    {
+                        node = node.Ns[i];
+                        goto done;
+                    }
+                    else if (node.Cs[i] > c)
+                        return false;
+                return false;
+                done: ;
+            }
+            return node.Accepting;
+        }
+
         private Node duplicate(Node node, string path, int from)
         {
             var result = new Node(node.Ns.Length) { Hash = node.Hash };
             for (int i = 0; i < node.Ns.Length; i++)
             {
                 result.Cs[i] = node.Cs[i];
-                if (node.Cs[i] == path[from])
+                if (from < path.Length && node.Cs[i] == path[from])
                     result.Ns[i] = duplicate(node.Ns[i], path, from + 1);
                 else
                     result.Ns[i] = node.Ns[i];
@@ -144,10 +172,11 @@ namespace ZoneFile
             return node;
         }
 
-        public void MergeEndingNode()
+        public Node MergeEndingNode()
         {
             var node = new Node(0) { Accepting = true };
             _starting.MergeEndingNode(node);
+            return node;
         }
 
         public static uint FnvHash(string str, int from = 0)
@@ -180,6 +209,57 @@ namespace ZoneFile
             foreach (var n in node.Ns)
                 if (n.Hash == 0)
                     assignIds(n);
+        }
+
+        public void Save(Stream stream)
+        {
+            var nodes = AllNodes().OrderByDescending(n => n.RefCount).ToArray();
+            var chars = new Dictionary<char, int>();
+            for (int i = 0; i < nodes.Length; i++)
+            {
+                nodes[i].Hash = (uint) i;
+                foreach (var c in nodes[i].Cs)
+                    chars.IncSafe(c);
+            }
+            var charset = chars.OrderByDescending(kvp => kvp.Value).Select(kvp => kvp.Key).ToArray();
+
+            using (var bw = new BinaryWriter(stream))
+            {
+                stream.WriteUInt32Optim((uint) charset.Length);
+                foreach (var c in charset)
+                    stream.WriteUInt32Optim(c);
+                stream.WriteUInt32Optim(_starting.Hash);
+                foreach (var node in nodes)
+                {
+                    stream.WriteInt32Optim(node.Accepting ? node.Ns.Length : -node.Ns.Length);
+                    foreach (var c in node.Cs)
+                        stream.WriteUInt32Optim((uint) charset.IndexOf(c));
+                    foreach (var n in node.Ns)
+                        stream.WriteUInt32Optim(n.Hash);
+                }
+            }
+        }
+
+        public void Save(string path)
+        {
+            using (var s = File.Open(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read))
+                Save(s);
+        }
+
+        public Node[] AllNodes()
+        {
+            var allnodes = new HashSet<Node>();
+            var queue = new Queue<Node>();
+            queue.Enqueue(_starting);
+            while (queue.Any())
+            {
+                var n = queue.Dequeue();
+                if (allnodes.Contains(n))
+                    continue;
+                allnodes.Add(n);
+                queue.EnqueueRange(n.Ns.Where(nd => !allnodes.Contains(nd)));
+            }
+            return allnodes.ToArray();
         }
     }
 
@@ -316,7 +396,11 @@ namespace ZoneFile
         {
             for (int i = 0; i < Ns.Length; i++)
                 if (Ns[i].IsBlank())
+                {
+                    if (Ns[i] != endingNode)
+                        endingNode.RefCount++;
                     Ns[i] = endingNode;
+                }
                 else
                     Ns[i].MergeEndingNode(endingNode);
         }
