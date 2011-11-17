@@ -12,7 +12,9 @@ namespace ZoneFile
         private Node _starting = new Node();
         private HashTable<Node> _nodes = new HashTable<Node>();
 
-        public int Count { get; private set; }
+        public int WordCount { get; private set; }
+        public int NodeCount { get { _starting.ResetHashCacheWithChildren(); var r = _starting.Count(); _starting.ResetHashCacheWithChildren(); return r; } }
+
 
         public void Add(string value)
         {
@@ -31,6 +33,7 @@ namespace ZoneFile
                 if (node != _starting)
                 {
                     _nodes.Remove(node.Hash(), node);
+                    node.HashCached = 0;
                     tohash.Add(node);
                 }
                 if (node.Nodes[c] == null)
@@ -77,8 +80,8 @@ namespace ZoneFile
                 if (n.RefCount > 0) // can go back to 0 if an earlier step duplicates but a later step optimizes away
                     _nodes.Add(n.Hash(), n);
 
+            WordCount++;
             //Verify();
-            Count++;
         }
 
         private Node duplicate(Node node, string path, List<Node> tohash)
@@ -107,6 +110,7 @@ namespace ZoneFile
             if (node.RefCount == 0)
             {
                 _nodes.Remove(node.Hash(), node);
+                node.HashCached = 0;
                 for (int i = 0; i < node.Nodes.Length; i++)
                     if (node.Nodes[i] != null)
                         dereference(node.Nodes[i]);
@@ -117,7 +121,7 @@ namespace ZoneFile
         {
             if (value == "")
                 return new Node { Ending = true };
-            foreach (var n in _nodes.GetValues(FnvHash(value + "|")))
+            foreach (var n in _nodes.GetValues(Node.HashSingleMatch(value)))
                 if (n.MatchesOnly(value))
                     return n;
 
@@ -127,16 +131,6 @@ namespace ZoneFile
             node.Nodes[c] = addNew(rest);
             node.Nodes[c].Reference();
             return node;
-        }
-
-        public static uint FnvHash(string value, uint hash = 2166136261)
-        {
-            for (int i = 0; i < value.Length; i++)
-            {
-                hash ^= value[i];
-                hash *= 16777619;
-            }
-            return hash;
         }
 
         public static int Char2Index(char c)
@@ -154,8 +148,11 @@ namespace ZoneFile
             foreach (var kvp in _nodes)
             {
                 foreach (var node in kvp.Value)
+                {
+                    node.ResetHashCacheWithChildren();
                     if (node.Hash() != kvp.Key)
                         throw new Exception("Wrong hash!");
+                }
                 foreach (var pair in kvp.Value.UniquePairs())
                     if (pair.Item1 != (object) pair.Item2)
                         if (pair.Item1.MatchesSame(pair.Item2))
@@ -183,6 +180,25 @@ namespace ZoneFile
                     if (n != null)
                         verifyNode(n);
             }
+        }
+
+        public static void Test()
+        {
+            var g = new Graph();
+            g.Add("ba");
+            if (g._starting.Hash() != Node.HashSingleMatch("ba"))
+                throw new Exception("fail");
+            var hypothetic = g._starting.HashWithAdd("fo");
+            g.Add("fo");
+            g._starting.HashCached = 0;
+            if (g._starting.Hash() != hypothetic)
+                throw new Exception("fail");
+        }
+
+        public void MergeEndingNode()
+        {
+            var node = new Node { Ending = true };
+            _starting.MergeEndingNode(node);
         }
     }
 
@@ -230,46 +246,9 @@ namespace ZoneFile
         public bool Ending;
         public int RefCount;
 
-        private int _alpha;
-
         public void Reference()
         {
             RefCount++;
-        }
-
-        public bool IsSingleUse()
-        {
-            if (RefCount != 1)
-                return false;
-            resetAlpha();
-            var tovisit = new Queue<Node>();
-            tovisit.Enqueue(this);
-
-            var visited = new List<Node>();
-            while (tovisit.Count > 0)
-            {
-                var cur = tovisit.Dequeue();
-                cur._alpha++;
-                if (!visited.Contains(cur))
-                {
-                    visited.Add(cur);
-                    for (int i = 0; i < cur.Nodes.Length; i++)
-                        if (cur.Nodes[i] != null)
-                            tovisit.Enqueue(cur.Nodes[i]);
-                }
-            }
-            for (int i = 0; i < visited.Count; i++)
-                if (visited[i]._alpha != visited[i].RefCount)
-                    return false;
-            return true;
-        }
-
-        private void resetAlpha()
-        {
-            _alpha = 0;
-            for (int i = 0; i < Nodes.Length; i++)
-                if (Nodes[i] != null)
-                    Nodes[i].resetAlpha();
         }
 
         public bool IsBlank()
@@ -349,31 +328,48 @@ namespace ZoneFile
             return true;
         }
 
-        public uint Hash(uint hash = 2166136261, string prefix = "")
+        public uint HashCached = 0;
+
+        public uint Hash()
         {
+            if (HashCached != 0)
+                return HashCached;
+
+            uint hash = 2166136261;
             if (Ending)
-                hash = Graph.FnvHash(prefix + "|", hash);
+                hash = (hash ^ 256) * 16777619;
             for (int i = 0; i < Nodes.Length; i++)
                 if (Nodes[i] != null)
-                    hash = Nodes[i].Hash(hash, prefix + Graph.Index2Char(i));
+                    hash = (((hash ^ Nodes[i].Hash()) * 16777619) ^ (uint) i) * 16777619;
+            HashCached = hash;
             return hash;
         }
 
-        public uint HashWithAdd(string add, uint hash = 2166136261, string prefix = "")
+        public uint HashWithAdd(string add)
         {
-            if (Ending != (add == ""))
-                hash = Graph.FnvHash(prefix + "|", hash);
             if (add == "")
-                return Hash(hash, prefix);
+                return Hash();
+
+            uint hash = 2166136261;
+            if (Ending)
+                hash = (hash ^ 256) * 16777619;
 
             int c = Graph.Char2Index(add[0]);
             for (int i = 0; i < Nodes.Length; i++)
                 if (i == c && Nodes[i] == null)
-                    hash = Graph.FnvHash(prefix + add + "|", hash);
+                    hash = (((hash ^ Node.HashSingleMatch(add.Substring(1))) * 16777619) ^ (uint) i) * 16777619;
                 else if (i != c && Nodes[i] != null)
-                    hash = Nodes[i].Hash(hash, prefix + Graph.Index2Char(i));
+                    hash = (((hash ^ Nodes[i].Hash()) * 16777619) ^ (uint) i) * 16777619;
                 else if (i == c && Nodes[i] != null)
-                    hash = Nodes[i].HashWithAdd(add.Substring(1), hash, prefix + add[0]);
+                    hash = (((hash ^ Nodes[i].HashWithAdd(add.Substring(1))) * 16777619) ^ (uint) i) * 16777619;
+            return hash;
+        }
+
+        public static uint HashSingleMatch(string value)
+        {
+            uint hash = unchecked((2166136261 ^ 256) * 16777619);
+            for (int i = value.Length - 1; i >= 0; i--)
+                hash = (((2166136261 ^ hash) * 16777619) ^ (uint) Graph.Char2Index(value[i])) * 16777619;
             return hash;
         }
 
@@ -408,6 +404,40 @@ namespace ZoneFile
             if (count != 1)
                 throw new Exception("9326");
             return result;
+        }
+
+        public void ResetHashCacheWithChildren()
+        {
+            HashCached = 0;
+            _unique = 0;
+            foreach (var node in Nodes)
+                if (node != null)
+                    node.ResetHashCacheWithChildren();
+        }
+
+        private static uint _unique;
+
+        public int Count()
+        {
+            int total = 1;
+            _unique++;
+            HashCached = _unique;
+            foreach (var node in Nodes)
+                if (node != null && node.HashCached == 0)
+                    total += node.Count();
+            return total;
+        }
+
+        public void MergeEndingNode(Node endingNode)
+        {
+            for (int i = 0; i < Nodes.Length; i++)
+                if (Nodes[i] != null)
+                {
+                    if (Nodes[i].IsBlank())
+                        Nodes[i] = endingNode;
+                    else
+                        Nodes[i].MergeEndingNode(endingNode);
+                }
         }
     }
 }
