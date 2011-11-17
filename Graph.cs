@@ -10,7 +10,7 @@ namespace ZoneFile
     class Graph
     {
         private Node _starting = new Node(0);
-        private HashTable<Node> _nodes = new HashTable<Node>();
+        private NodeHashTable _nodes = new NodeHashTable();
 
         public int WordCount { get; private set; }
         public int NodeCount { get { _starting.ResetHashCacheWithChildren(); var r = _starting.Count(); _starting.ResetHashCacheWithChildren(); return r; } }
@@ -236,44 +236,14 @@ namespace ZoneFile
             var node = new Node(0) { Accepting = true };
             _starting.MergeEndingNode(node);
         }
-    }
 
-    class HashTable<T> : IEnumerable<KeyValuePair<uint, List<T>>>
-    {
-        private Dictionary<uint, List<T>> _values = new Dictionary<uint, List<T>>();
-
-        public void Add(uint hash, T value)
+        public static uint FnvHash(string str)
         {
-            if (_values.ContainsKey(hash))
-            {
-                if (_values[hash].Contains(value))
-                    throw new Exception("already there!");
-                _values[hash].Add(value);
-            }
-            else
-            {
-                var list = new List<T>();
-                list.Add(value);
-                _values[hash] = list;
-            }
+            uint hash = 2166136261;
+            for (int i = 0; i < str.Length; i++)
+                hash = (hash ^ str[i]) * 16777619;
+            return (hash ^ 32452867) * 16777619;
         }
-
-        public bool Remove(uint hash, T value)
-        {
-            if (!_values.ContainsKey(hash))
-                return false;
-            return _values[hash].Remove(value);
-        }
-
-        public T[] GetValues(uint hash)
-        {
-            if (!_values.ContainsKey(hash))
-                return new T[0];
-            return _values[hash].ToArray();
-        }
-
-        public IEnumerator<KeyValuePair<uint, List<T>>> GetEnumerator() { return _values.GetEnumerator(); }
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
     }
 
     class Node
@@ -282,6 +252,7 @@ namespace ZoneFile
         public char[] Cs;
         public bool Accepting;
         public int RefCount;
+        public uint HashCached = 0;
 
         public Node(int blanks)
         {
@@ -388,8 +359,6 @@ namespace ZoneFile
                     return false;
             return true;
         }
-
-        public uint HashCached = 0;
 
         public uint Hash()
         {
@@ -518,4 +487,45 @@ namespace ZoneFile
             return Ns.Length - 1;
         }
     }
+
+    class NodeHashTable : IEnumerable<KeyValuePair<uint, List<Node>>>
+    {
+        private Dictionary<uint, List<Node>> _values = new Dictionary<uint, List<Node>>();
+
+        public void Add(uint hash, Node value)
+        {
+            if (_values.ContainsKey(hash))
+            {
+                if (_values[hash].Contains(value))
+                    throw new Exception("already there!");
+                _values[hash].Add(value);
+            }
+            else
+            {
+                var list = new List<Node>();
+                list.Add(value);
+                _values[hash] = list;
+            }
+        }
+
+        public void Remove(uint hash, Node value)
+        {
+            if (!_values.ContainsKey(hash))
+                return;
+            _values[hash].Remove(value);
+            if (_values[hash].Count == 0)
+                _values.Remove(hash);
+        }
+
+        public Node[] GetValues(uint hash)
+        {
+            if (!_values.ContainsKey(hash))
+                return new Node[0];
+            return _values[hash].ToArray();
+        }
+
+        public IEnumerator<KeyValuePair<uint, List<Node>>> GetEnumerator() { return _values.GetEnumerator(); }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
+    }
+
 }
