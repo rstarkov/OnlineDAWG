@@ -19,25 +19,16 @@ namespace ZoneFile
         {
             var node = _starting;
             uint nexthash = 0;
-            for (int index = 1; index <= value.Length + 1; index++)
+            for (int index = 1; index <= value.Length; index++)
             {
-                char c = value[0];
-                string rest = value.Substring(1);
+                char c = value[index - 1];
 
                 if (node != _starting)
                 {
                     if (!node.IsBlank())
                         _nodes.Remove(node.Hash, node);
-                    if (nexthash == 0)
-                        nexthash = FnvHash(value);
                     node.Hash ^= nexthash;
                     _nodes.Add(node.Hash, node);
-                }
-
-                if (value.Length == 0)
-                {
-                    node.Accepting = true;
-                    break;
                 }
 
                 int n = -1;
@@ -62,30 +53,30 @@ namespace ZoneFile
 
                 if (node.Ns[n] == null)
                 {
-                    node.Ns[n] = addNew(rest);
-                    node.Ns[n].Reference();
+                    node.Ns[n] = addNew(value, index);
+                    node.Ns[n].RefCount++;
                     break;
                 }
 
                 if (node.Ns[n].RefCount > 1)
                 {
                     var old = node.Ns[n];
-                    node.Ns[n] = duplicate(old, rest);
+                    node.Ns[n] = duplicate(old, value, index);
                     dereference(old);
-                    node.Ns[n].Reference();
+                    node.Ns[n].RefCount++;
                 }
 
-                nexthash = FnvHash(rest);
+                nexthash = FnvHash(value, index);
                 bool done = false;
                 var candidates = _nodes.GetValues(node.Ns[n].Hash ^ nexthash);
                 var candidate = candidates.First;
                 while (candidate != null)
                 {
-                    if (node.Ns[n].MatchesSameWithAdd(rest, candidate.Value))
+                    if (node.Ns[n].MatchesSameWithAdd(value, index, candidate.Value))
                     {
                         var old = node.Ns[n];
                         node.Ns[n] = candidate.Value;
-                        node.Ns[n].Reference();
+                        node.Ns[n].RefCount++;
                         dereference(old);
                         done = true;
                         break;
@@ -96,26 +87,23 @@ namespace ZoneFile
                     break;
 
                 node = node.Ns[n];
-                value = rest;
             }
 
             WordCount++;
             //Verify();
         }
 
-        private Node duplicate(Node node, string path)
+        private Node duplicate(Node node, string path, int from)
         {
-            if (path == "")
-                throw new Exception("198729");
             var result = new Node(node.Ns.Length) { Hash = node.Hash };
             for (int i = 0; i < node.Ns.Length; i++)
             {
                 result.Cs[i] = node.Cs[i];
-                if (node.Cs[i] == path[0])
-                    result.Ns[i] = duplicate(node.Ns[i], path.Substring(1));
+                if (node.Cs[i] == path[from])
+                    result.Ns[i] = duplicate(node.Ns[i], path, from + 1);
                 else
                     result.Ns[i] = node.Ns[i];
-                result.Ns[i].Reference();
+                result.Ns[i].RefCount++;
             }
             result.Accepting = node.Accepting;
             return result;
@@ -135,18 +123,19 @@ namespace ZoneFile
             }
         }
 
-        private Node addNew(string value)
+        private Node addNew(string value, int from)
         {
-            if (value == "")
-                return new Node(0) { Accepting = true, Hash = FnvHash("") };
-            foreach (var n in _nodes.GetValues(FnvHash(value)))
-                if (n.MatchesOnly(value))
+            if (from == value.Length)
+                return new Node(0) { Accepting = true, Hash = 2166136261 };
+            var hash = FnvHash(value, from);
+            foreach (var n in _nodes.GetValues(hash))
+                if (n.MatchesOnly(value, from))
                     return n;
 
-            var node = new Node(1) { Hash = FnvHash(value) };
-            node.Cs[0] = value[0];
-            node.Ns[0] = addNew(value.Substring(1));
-            node.Ns[0].Reference();
+            var node = new Node(1) { Hash = hash };
+            node.Cs[0] = value[from];
+            node.Ns[0] = addNew(value, from + 1);
+            node.Ns[0].RefCount++;
             _nodes.Add(node.Hash, node);
             return node;
         }
@@ -157,10 +146,10 @@ namespace ZoneFile
             _starting.MergeEndingNode(node);
         }
 
-        public static uint FnvHash(string str)
+        public static uint FnvHash(string str, int from = 0)
         {
             uint hash = 2166136261;
-            for (int i = 0; i < str.Length; i++)
+            for (int i = from; i < str.Length; i++)
                 hash = (hash ^ str[i]) * 16777619;
             return hash;
         }
@@ -204,25 +193,21 @@ namespace ZoneFile
             Cs = new char[blanks];
         }
 
-        public void Reference()
-        {
-            RefCount++;
-        }
-
         public bool IsBlank()
         {
-            // OPT: inline everywhere
             return Ns.Length == 0;
         }
 
-        public bool MatchesOnly(string value)
+        public bool MatchesOnly(string value, int from)
         {
-            if (value == "")
-                return Accepting && IsBlank();
-            if (Ns.Length != 1)
-                return false;
-            return Cs[0] == value[0] && Ns[0].MatchesOnly(value.Substring(1));
-            // OPT: remove recursion and substring
+            var node = this;
+            for (; from < value.Length; from++)
+            {
+                if (node.Ns.Length != 1) return false;
+                if (node.Cs[0] != value[from]) return false;
+                node = node.Ns[0];
+            }
+            return node.Accepting && node.IsBlank();
         }
 
         public bool MatchesSame(Node other)
@@ -232,17 +217,17 @@ namespace ZoneFile
             return matchesHelper(other);
         }
 
-        public bool MatchesSameWithAdd(string add, Node other)
+        public bool MatchesSameWithAdd(string add, int from, Node other)
         {
-            if ((Accepting || add == "") != other.Accepting)
+            if ((Accepting || from == add.Length) != other.Accepting)
                 return false;
-            if (add == "")
+            if (from == add.Length)
                 return matchesHelper(other);
             if (this.Ns.Length < other.Ns.Length - 1 || this.Ns.Length > other.Ns.Length)
                 return false;
 
             // Shallow test to make sure the characters match
-            char c = add[0];
+            char c = add[from];
             bool had = false;
             int t, o;
             for (t = o = 0; t < this.Cs.Length && o < other.Cs.Length; t++, o++)
@@ -270,12 +255,12 @@ namespace ZoneFile
                     had = true;
                     if (this.Cs[t] == c)
                     {
-                        if (!this.Ns[t].MatchesSameWithAdd(add.Substring(1), other.Ns[o]))
+                        if (!this.Ns[t].MatchesSameWithAdd(add, from + 1, other.Ns[o]))
                             return false;
                     }
                     else
                     {
-                        if (!other.Ns[o].MatchesOnly(add.Substring(1)))
+                        if (!other.Ns[o].MatchesOnly(add, from + 1))
                             return false;
                         t--;
                     }
@@ -285,7 +270,7 @@ namespace ZoneFile
                         return false;
             }
             if (!had)
-                if (!other.Ns[o].MatchesOnly(add.Substring(1)))
+                if (!other.Ns[o].MatchesOnly(add, from + 1))
                     return false;
 
             return true;
