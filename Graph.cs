@@ -26,9 +26,9 @@ namespace ZoneFile
                 if (node != _starting)
                 {
                     if (!node.IsBlank())
-                        _nodes.Remove(node.Hash, node);
+                        _nodes.Remove(node);
                     node.Hash ^= nexthash;
-                    _nodes.Add(node.Hash, node);
+                    _nodes.Add(node);
                 }
 
                 int n = -1;
@@ -68,18 +68,22 @@ namespace ZoneFile
 
                 nexthash = FnvHash(value, index);
                 bool done = false;
-                var candidates = _nodes.GetValues(node.Ns[n].Hash ^ nexthash);
+                var wantedhash = node.Ns[n].Hash ^ nexthash;
+                var candidates = _nodes.GetValuesApprox(wantedhash);
                 var candidate = candidates.First;
                 while (candidate != null)
                 {
-                    if (node.Ns[n].MatchesSameWithAdd(value, index, candidate.Value))
+                    if (candidate.Value.Hash == wantedhash)
                     {
-                        var old = node.Ns[n];
-                        node.Ns[n] = candidate.Value;
-                        node.Ns[n].RefCount++;
-                        dereference(old);
-                        done = true;
-                        break;
+                        if (node.Ns[n].MatchesSameWithAdd(value, index, candidate.Value))
+                        {
+                            var old = node.Ns[n];
+                            node.Ns[n] = candidate.Value;
+                            node.Ns[n].RefCount++;
+                            dereference(old);
+                            done = true;
+                            break;
+                        }
                     }
                     candidate = candidate.Next;
                 }
@@ -117,7 +121,7 @@ namespace ZoneFile
             if (node.RefCount == 0)
             {
                 if (!node.IsBlank())
-                    _nodes.Remove(node.Hash, node);
+                    _nodes.Remove(node);
                 for (int i = 0; i < node.Ns.Length; i++)
                     dereference(node.Ns[i]);
             }
@@ -128,15 +132,15 @@ namespace ZoneFile
             if (from == value.Length)
                 return new Node(0) { Accepting = true, Hash = 2166136261 };
             var hash = FnvHash(value, from);
-            foreach (var n in _nodes.GetValues(hash))
-                if (n.MatchesOnly(value, from))
+            foreach (var n in _nodes.GetValuesApprox(hash))
+                if (n.Hash == hash && n.MatchesOnly(value, from))
                     return n;
 
             var node = new Node(1) { Hash = hash };
             node.Cs[0] = value[from];
             node.Ns[0] = addNew(value, from + 1);
             node.Ns[0].RefCount++;
-            _nodes.Add(node.Hash, node);
+            _nodes.Add(node);
             return node;
         }
 
@@ -341,42 +345,42 @@ namespace ZoneFile
         }
     }
 
-    class NodeHashTable : IEnumerable<KeyValuePair<uint, LinkedList<Node>>>
+    class NodeHashTable : IEnumerable<Node>
     {
-        private Dictionary<uint, LinkedList<Node>> _values = new Dictionary<uint, LinkedList<Node>>();
+        private LinkedList<Node>[] _table = new LinkedList<Node>[65536]; // OPT: tweak size
 
-        public void Add(uint hash, Node value)
+        public void Add(Node value)
         {
-            if (_values.ContainsKey(hash))
-            {
-                _values[hash].AddLast(value);
-            }
-            else
-            {
-                var list = new LinkedList<Node>();
-                list.AddLast(value);
-                _values[hash] = list;
-            }
+            int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
+            if (_table[index] == null)
+                _table[index] = new LinkedList<Node>();
+            _table[index].AddFirst(value);
         }
 
-        public void Remove(uint hash, Node value)
+        public void Remove(Node value)
         {
-            _values[hash].Remove(value);
-            if (_values[hash].Count == 0)
-                _values.Remove(hash);
+            int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
+            if (_table[index] == null)
+                return;
+            _table[index].Remove(value);
+            if (_table[index].Count == 0) // OPT: see if removing this helps
+                _table[index] = null;
         }
 
         private static LinkedList<Node> _empty = new LinkedList<Node>();
 
-        public LinkedList<Node> GetValues(uint hash)
+        public IEnumerable<Node> GetValuesExact(uint hash)
         {
-            if (!_values.ContainsKey(hash))
-                return _empty;
-            return _values[hash];
+            return GetValuesApprox(hash).Where(n => n.Hash == hash);
         }
 
+        public LinkedList<Node> GetValuesApprox(uint hash)
+        {
+            int index = (int) ((hash ^ (hash >> 16)) & 0xFFFF);
+            return _table[index] == null ? _empty : _table[index];
+        }
 
-        public IEnumerator<KeyValuePair<uint, LinkedList<Node>>> GetEnumerator() { return _values.GetEnumerator(); }
+        public IEnumerator<Node> GetEnumerator() { return _table.Where(r => r != null).SelectMany(r => r).GetEnumerator(); }
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
     }
 }
