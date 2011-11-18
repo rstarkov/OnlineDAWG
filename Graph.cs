@@ -18,10 +18,13 @@ namespace OnlineDAWG
     public partial class DawgGraph
     {
         private DawgNode _starting = new DawgNode(0);
+        private DawgNode _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
         private DawgHashTable _nodes = new DawgHashTable();
 
+        /// <summary>Gets the number of distinct "words" (values added with <see cref="Add"/>) that this graph accepts.</summary>
         public int WordCount { get; private set; }
-        public int NodeCount { get { return _nodes.Count() + 2; } }
+        /// <summary>Gets the number of nodes in the graph.</summary>
+        public int NodeCount { get { return _nodes.Count + 2; } }
 
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
@@ -40,6 +43,9 @@ namespace OnlineDAWG
                     node.Hash ^= nexthash;
                     _nodes.Add(node);
                 }
+
+                if (node == _ending)
+                    _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
 
                 if (index - 1 == value.Length)
                 {
@@ -171,7 +177,7 @@ namespace OnlineDAWG
         private DawgNode addNew(string value, int from)
         {
             if (from == value.Length)
-                return new DawgNode(0) { Accepting = true, Hash = 2166136261 };
+                return _ending;
             var hash = FnvHash(value, from);
             foreach (var n in _nodes.GetValuesApprox(hash))
                 if (n.Hash == hash && n.MatchesOnly(value, from))
@@ -183,12 +189,6 @@ namespace OnlineDAWG
             node.Ns[0].RefCount++;
             _nodes.Add(node);
             return node;
-        }
-
-        public void MergeEndingNode()
-        {
-            var node = new DawgNode(0) { Accepting = true };
-            _starting.MergeEndingNode(node);
         }
 
         private static uint FnvHash(string str, int from = 0)
@@ -230,8 +230,8 @@ namespace OnlineDAWG
             optimWrite(stream, (uint) charset.Length);
             foreach (var c in charset)
                 optimWrite(stream, c);
-            optimWrite(stream, _starting.Hash);
             optimWrite(stream, (uint) nodes.Length);
+            optimWrite(stream, _starting.Hash);
             foreach (var node in nodes)
             {
                 optimWrite(stream, (uint) (node.Ns.Length * 2 + (node.Accepting ? 1 : 0)));
@@ -252,7 +252,7 @@ namespace OnlineDAWG
         {
             var buf = new byte[64];
             fillBuffer(stream, buf, 0, 6);
-            if (Encoding.UTF8.GetString(buf) != "DAWG.1")
+            if (Encoding.UTF8.GetString(buf, 0, 6) != "DAWG.1")
                 throw new InvalidDataException();
             var result = new DawgGraph();
 

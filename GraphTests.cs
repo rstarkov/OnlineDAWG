@@ -8,7 +8,7 @@
 // warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace OnlineDAWG
@@ -16,7 +16,7 @@ namespace OnlineDAWG
     partial class DawgGraph
     {
         /// <summary>
-        /// Performs various self-tests on the current DAWG. This method is very slow.
+        /// Performs various self-tests on the current DAWG. This method is slow.
         /// </summary>
         public void Verify()
         {
@@ -47,6 +47,8 @@ namespace OnlineDAWG
                 throw new Exception("Blank but not ending");
             else if (node.IsBlank())
             {
+                if (node != _ending)
+                    throw new Exception("Blank accepting node != _ending");
                 if (_nodes.GetValuesApprox(node.Hash).Contains(node))
                     throw new Exception("Blank terminating node is in hash table!");
             }
@@ -57,6 +59,68 @@ namespace OnlineDAWG
                 foreach (var n in node.Ns)
                     verifyNode(n);
             }
+        }
+
+        public static void SelfTest()
+        {
+            DawgGraph g;
+
+            g = new DawgGraph();
+            g.Add("fos"); g.Verify();
+            g.Add("as"); g.Verify();
+            g.Add("fo"); g.Verify();
+            assert(g.WordCount == 3);
+            assert(g.NodeCount == 5);
+
+            g = new DawgGraph();
+            g.Add("xac"); g.Verify(); assert(g.NodeCount == 4);
+            g.Add("xacd"); g.Verify(); assert(g.NodeCount == 5);
+            g.Add("xbe"); g.Verify(); assert(g.NodeCount == 6);
+            g.Add("xbef"); g.Verify(); assert(g.NodeCount == 7);
+            g.Add("yac"); g.Verify(); assert(g.NodeCount == 9);
+            g.Add("ybe"); g.Verify(); assert(g.NodeCount == 10);
+            g.Add("ybef"); g.Verify(); assert(g.NodeCount == 9);
+            g.Add("yacd"); g.Verify(); assert(g.NodeCount == 7);
+            assert(g.WordCount == 8);
+            assert(g.NodeCount == 7);
+
+            g = new DawgGraph();
+            g.Add("xab"); g.Verify();
+            g.Add("xac"); g.Verify();
+            g.Add("yab"); g.Verify();
+            g.Add("yac"); g.Verify();
+            g.Add("xabc"); g.Verify();
+            assert(g.WordCount == 5);
+            assert(g.NodeCount == 7);
+
+            var ms = new MemoryStream();
+            g.Save(ms);
+            ms.Position = 0;
+            var g2 = DawgGraph.Load(ms);
+            assert(g2.Contains("xabc"));
+            assert(g2.Contains("yac"));
+            assert(g2.Contains("yab"));
+            assert(g2.Contains("xac"));
+            assert(g2.Contains("xab"));
+
+            assert(!g2.Contains("yabc"));
+            assert(!g2.Contains("abc"));
+            assert(!g2.Contains("ac"));
+            assert(!g2.Contains("c"));
+            assert(!g2.Contains(""));
+            assert(!g2.Contains("stuff"));
+
+            ms = new MemoryStream();
+            new DawgGraph().Save(ms);
+            ms.Position = 0;
+            g2 = DawgGraph.Load(ms);
+            assert(!g2.Contains(""));
+        }
+
+        private static void assert(bool p)
+        {
+            if (!p)
+                throw new Exception("DawgGraph SelfTest failed.");
         }
     }
 }

@@ -19,6 +19,7 @@ namespace OnlineDAWG
     class DawgHashTable : IEnumerable<DawgNode>
     {
         private LinkedList<DawgNode>[] _table = new LinkedList<DawgNode>[65536];
+        public int Count { get; private set; }
 
         /// <summary>
         /// Adds the node to the hash table. No check is made for duplicate nodes; passing in duplicates will
@@ -30,6 +31,7 @@ namespace OnlineDAWG
             if (_table[index] == null)
                 _table[index] = new LinkedList<DawgNode>();
             _table[index].AddFirst(value);
+            Count++;
         }
 
         /// <summary>
@@ -40,7 +42,8 @@ namespace OnlineDAWG
             int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
             if (_table[index] == null)
                 return;
-            _table[index].Remove(value);
+            if (_table[index].Remove(value))
+                Count--;
             if (_table[index].Count == 0)
                 _table[index] = null;
         }

@@ -143,19 +143,6 @@ namespace OnlineDAWG
                     yield return suf;
         }
 
-        public void MergeEndingNode(DawgNode endingNode)
-        {
-            for (int i = 0; i < Ns.Length; i++)
-                if (Ns[i].IsBlank())
-                {
-                    if (Ns[i] != endingNode)
-                        endingNode.RefCount++;
-                    Ns[i] = endingNode;
-                }
-                else
-                    Ns[i].MergeEndingNode(endingNode);
-        }
-
         public void InsertBlankAt(int pos)
         {
             var newNs = new DawgNode[Ns.Length + 1];
