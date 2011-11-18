@@ -130,16 +130,21 @@ namespace OnlineDAWG
             {
                 char c = value[index];
 
-                for (int i = 0; i < node.Cs.Length; i++)
-                    if (node.Cs[i] == c)
-                    {
-                        node = node.Ns[i];
-                        goto done;
-                    }
-                    else if (node.Cs[i] > c)
-                        return false;
-                return false;
-                done: ;
+                int n = -1;
+                int nmin = 0, nmax = node.Cs.Length - 1;
+                while (nmin <= nmax)
+                {
+                    n = (nmin + nmax) >> 1;
+                    if (node.Cs[n] < c)
+                        nmin = n + 1;
+                    else if (node.Cs[n] > c)
+                        nmax = n - 1;
+                    else // equal
+                        break;
+                }
+                if (nmin > nmax)
+                    return false;
+                node = node.Ns[n];
             }
             return node.Accepting;
         }
