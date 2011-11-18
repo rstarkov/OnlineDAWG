@@ -13,7 +13,7 @@ using System.Linq;
 
 namespace OnlineDAWG
 {
-    public class DawgNode
+    class DawgNode
     {
         public DawgNode[] Ns;
         public char[] Cs;
@@ -23,6 +23,7 @@ namespace OnlineDAWG
 
         public DawgNode(int blanks)
         {
+            if (blanks < 0) return;
             Ns = new DawgNode[blanks];
             Cs = new char[blanks];
         }
@@ -159,23 +160,14 @@ namespace OnlineDAWG
         {
             var newNs = new DawgNode[Ns.Length + 1];
             Array.Copy(Ns, newNs, pos);
-            Array.Copy(Ns, pos, newNs, pos + 1, Ns.Length - pos);
+            if (pos < Ns.Length)
+                Array.Copy(Ns, pos, newNs, pos + 1, Ns.Length - pos);
             Ns = newNs;
             var newCs = new char[Cs.Length + 1];
             Array.Copy(Cs, newCs, pos);
-            Array.Copy(Cs, pos, newCs, pos + 1, Cs.Length - pos);
+            if (pos < Ns.Length)
+                Array.Copy(Cs, pos, newCs, pos + 1, Cs.Length - pos);
             Cs = newCs;
-        }
-
-        public int AppendBlank()
-        {
-            var newNs = new DawgNode[Ns.Length + 1];
-            Array.Copy(Ns, newNs, Ns.Length);
-            Ns = newNs;
-            var newCs = new char[Cs.Length + 1];
-            Array.Copy(Cs, newCs, Cs.Length);
-            Cs = newCs;
-            return Ns.Length - 1;
         }
     }
 }

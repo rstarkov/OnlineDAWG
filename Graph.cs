@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace OnlineDAWG
 {
@@ -48,23 +49,23 @@ namespace OnlineDAWG
 
                 char c = value[index - 1];
 
+                // Find the outgoing edge index, or insert it if not there yet
                 int n = -1;
-                for (int i = 0; i < node.Cs.Length; i++)
-                    if (node.Cs[i] == c)
-                    {
-                        n = i;
-                        break;
-                    }
-                    else if (node.Cs[i] > c)
-                    {
-                        node.InsertBlankAt(i);
-                        node.Cs[i] = c;
-                        n = i;
-                        break;
-                    }
-                if (n < 0)
+                int nmin = 0, nmax = node.Cs.Length - 1;
+                while (nmin <= nmax)
                 {
-                    n = node.AppendBlank();
+                    n = (nmin + nmax) >> 1;
+                    if (node.Cs[n] < c)
+                        nmin = n + 1;
+                    else if (node.Cs[n] > c)
+                        nmax = n - 1;
+                    else // equal
+                        break;
+                }
+                if (nmin > nmax)
+                {
+                    n = nmin;
+                    node.InsertBlankAt(n);
                     node.Cs[n] = c;
                 }
 
@@ -184,11 +185,10 @@ namespace OnlineDAWG
             return node;
         }
 
-        public DawgNode MergeEndingNode()
+        public void MergeEndingNode()
         {
             var node = new DawgNode(0) { Accepting = true };
             _starting.MergeEndingNode(node);
-            return node;
         }
 
         private static uint FnvHash(string str, int from = 0)
@@ -226,40 +226,74 @@ namespace OnlineDAWG
             }
             var charset = chars.OrderByDescending(kvp => kvp.Value).Select(kvp => kvp.Key).ToArray();
 
-            using (var bw = new BinaryWriter(stream))
+            stream.Write(Encoding.UTF8.GetBytes("DAWG.1"), 0, 6);
+            optimWrite(stream, (uint) charset.Length);
+            foreach (var c in charset)
+                optimWrite(stream, c);
+            optimWrite(stream, _starting.Hash);
+            optimWrite(stream, (uint) nodes.Length);
+            foreach (var node in nodes)
             {
-                optimWriteU(stream, (uint) charset.Length);
-                foreach (var c in charset)
-                    optimWriteU(stream, c);
-                optimWriteU(stream, _starting.Hash);
-                foreach (var node in nodes)
+                optimWrite(stream, (uint) (node.Ns.Length * 2 + (node.Accepting ? 1 : 0)));
+                foreach (var c in node.Cs)
                 {
-                    optimWriteS(stream, node.Accepting ? node.Ns.Length : -node.Ns.Length);
-                    foreach (var c in node.Cs)
-                    {
-                        int f = 0;
-                        for (; f < charset.Length; f++)
-                            if (charset[f] == c)
-                                break;
-                        optimWriteU(stream, (uint) f);
-                    }
-                    foreach (var n in node.Ns)
-                        optimWriteU(stream, n.Hash);
+                    int f = 0;
+                    for (; f < charset.Length; f++)
+                        if (charset[f] == c)
+                            break;
+                    optimWrite(stream, (uint) f);
                 }
+                foreach (var n in node.Ns)
+                    optimWrite(stream, n.Hash);
             }
         }
 
-        private static void optimWriteS(Stream stream, int val)
+        public static DawgGraph Load(Stream stream)
         {
-            while (val < -64 || val > 63)
+            var buf = new byte[64];
+            fillBuffer(stream, buf, 0, 6);
+            if (Encoding.UTF8.GetString(buf) != "DAWG.1")
+                throw new InvalidDataException();
+            var result = new DawgGraph();
+
+            var charset = new char[optimRead(stream)];
+            for (int i = 0; i < charset.Length; i++)
+                charset[i] = (char) optimRead(stream);
+
+            var nodes = new DawgNode[optimRead(stream)];
+            for (int n = 0; n < nodes.Length; n++)
+                nodes[n] = new DawgNode(-1);
+            result._starting = nodes[optimRead(stream)];
+            for (int n = 0; n < nodes.Length; n++)
             {
-                stream.WriteByte((byte) (val | 128));
-                val >>= 7;
+                uint acclen = optimRead(stream);
+                nodes[n].Cs = new char[acclen >> 1];
+                nodes[n].Ns = new DawgNode[acclen >> 1];
+                nodes[n].Accepting = (acclen & 1) != 0;
+                for (int i = 0; i < nodes[n].Cs.Length; i++)
+                    nodes[n].Cs[i] = charset[optimRead(stream)];
+                for (int i = 0; i < nodes[n].Ns.Length; i++)
+                    nodes[n].Ns[i] = nodes[optimRead(stream)];
             }
-            stream.WriteByte((byte) (val & 127));
+            return result;
         }
 
-        private static void optimWriteU(Stream stream, uint val)
+        private static int fillBuffer(Stream stream, byte[] buffer, int offset, int length)
+        {
+            int totalRead = 0;
+            while (length > 0)
+            {
+                var read = stream.Read(buffer, offset, length);
+                if (read == 0)
+                    return totalRead;
+                offset += read;
+                length -= read;
+                totalRead += read;
+            }
+            return totalRead;
+        }
+
+        private static void optimWrite(Stream stream, uint val)
         {
             while (val >= 128)
             {
@@ -269,7 +303,23 @@ namespace OnlineDAWG
             stream.WriteByte((byte) val);
         }
 
-        public DawgNode[] GetNodes()
+        private static uint optimRead(Stream stream)
+        {
+            byte b = 255;
+            int shifts = 0;
+            uint res = 0;
+            while (b > 127)
+            {
+                int read = stream.ReadByte();
+                if (read < 0) throw new InvalidOperationException("Unexpected end of stream (#25753)");
+                b = (byte) read;
+                res = res | ((uint) (b & 127) << shifts);
+                shifts += 7;
+            }
+            return res;
+        }
+
+        internal DawgNode[] GetNodes()
         {
             var allnodes = new HashSet<DawgNode>();
             var queue = new Queue<DawgNode>();
