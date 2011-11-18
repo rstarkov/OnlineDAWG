@@ -125,7 +125,7 @@ namespace OnlineDAWG
 
         public override string ToString()
         {
-            return "Node: " + string.Join("|", Suffixes().Select(s => s == "" ? "<acc>" : s));
+            return "Node: " + string.Join("|", Suffixes().Select(s => s == "" ? "<acc>" : s).ToArray());
         }
 
         public IEnumerable<string> Suffixes()

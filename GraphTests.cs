@@ -22,23 +22,17 @@ namespace OnlineDAWG
         {
             foreach (var grp in _nodes.GroupBy(n => n.Hash))
             {
-                foreach (var pair in uniquePairs(grp))
-                    if (pair.Item1 == (object) pair.Item2)
-                        throw new Exception("Duplicate nodes");
-                    else if (pair.Item1.MatchesSame(pair.Item2))
-                        throw new Exception("Graph is not optimal!");
+                var arr = grp.ToArray();
+                for (int i = 0; i < arr.Length - 1; i++)
+                    for (int j = i + 1; j < arr.Length; j++)
+                        if (arr[i] == (object) arr[j])
+                            throw new Exception("Duplicate nodes");
+                        else if (arr[i].MatchesSame(arr[j]))
+                            throw new Exception("Graph is not optimal!");
             }
             if (_nodes.Contains(_starting))
                 throw new Exception("Starting node is in hash table!");
             verifyNode(_starting);
-        }
-
-        private static IEnumerable<Tuple<T, T>> uniquePairs<T>(IEnumerable<T> source)
-        {
-            IList<T> arr = source as IList<T> ?? source.ToArray();
-            for (int i = 0; i < arr.Count - 1; i++)
-                for (int j = i + 1; j < arr.Count; j++)
-                    yield return new Tuple<T, T>(arr[i], arr[j]);
         }
 
         private void verifyNode(DawgNode node)
