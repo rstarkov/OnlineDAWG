@@ -13,10 +13,15 @@ using System.Linq;
 
 namespace OnlineDAWG
 {
+    struct DawgEdge
+    {
+        public DawgNode Node;
+        public char Char;
+    }
+
     class DawgNode
     {
-        public DawgNode[] Ns;
-        public char[] Cs;
+        public DawgEdge[] Edges;
         public bool Accepting;
         public int RefCount;
         public uint Hash = 0;
@@ -24,13 +29,12 @@ namespace OnlineDAWG
         public DawgNode(int blanks)
         {
             if (blanks < 0) return;
-            Ns = new DawgNode[blanks];
-            Cs = new char[blanks];
+            Edges = new DawgEdge[blanks];
         }
 
         public bool IsBlank()
         {
-            return Ns.Length == 0;
+            return Edges.Length == 0;
         }
 
         public bool MatchesOnly(string value, int from)
@@ -38,9 +42,9 @@ namespace OnlineDAWG
             var node = this;
             for (; from < value.Length; from++)
             {
-                if (node.Ns.Length != 1) return false;
-                if (node.Cs[0] != value[from]) return false;
-                node = node.Ns[0];
+                if (node.Edges.Length != 1) return false;
+                if (node.Edges[0].Char != value[from]) return false;
+                node = node.Edges[0].Node;
             }
             return node.Accepting && node.IsBlank();
         }
@@ -58,54 +62,54 @@ namespace OnlineDAWG
                 return false;
             if (from == add.Length)
                 return matchesHelper(other);
-            if (this.Ns.Length < other.Ns.Length - 1 || this.Ns.Length > other.Ns.Length)
+            if (this.Edges.Length < other.Edges.Length - 1 || this.Edges.Length > other.Edges.Length)
                 return false;
 
             // Shallow test to make sure the characters match
             char c = add[from];
             bool had = false;
             int t, o;
-            for (t = o = 0; t < this.Cs.Length && o < other.Cs.Length; t++, o++)
+            for (t = o = 0; t < this.Edges.Length && o < other.Edges.Length; t++, o++)
             {
-                if (other.Cs[o] == c)
+                if (other.Edges[o].Char == c)
                 {
                     had = true;
-                    if (this.Cs[t] != c)
+                    if (this.Edges[t].Char != c)
                         t--;
                 }
-                else if (this.Cs[t] == c)
+                else if (this.Edges[t].Char == c)
                     return false;
-                else if (this.Cs[t] != other.Cs[o])
+                else if (this.Edges[t].Char != other.Edges[o].Char)
                     return false;
             }
-            if (!had && (t != this.Cs.Length || o != other.Cs.Length - 1 || c != other.Cs[o]))
+            if (!had && (t != this.Edges.Length || o != other.Edges.Length - 1 || c != other.Edges[o].Char))
                 return false;
 
             // Deep test to ensure that the nodes match
             had = false;
-            for (t = o = 0; t < this.Cs.Length && o < other.Cs.Length; t++, o++)
+            for (t = o = 0; t < this.Edges.Length && o < other.Edges.Length; t++, o++)
             {
-                if (other.Cs[o] == c)
+                if (other.Edges[o].Char == c)
                 {
                     had = true;
-                    if (this.Cs[t] == c)
+                    if (this.Edges[t].Char == c)
                     {
-                        if (!this.Ns[t].MatchesSameWithAdd(add, from + 1, other.Ns[o]))
+                        if (!this.Edges[t].Node.MatchesSameWithAdd(add, from + 1, other.Edges[o].Node))
                             return false;
                     }
                     else
                     {
-                        if (!other.Ns[o].MatchesOnly(add, from + 1))
+                        if (!other.Edges[o].Node.MatchesOnly(add, from + 1))
                             return false;
                         t--;
                     }
                 }
-                else if (this.Cs[t] == other.Cs[o])
-                    if (!this.Ns[t].MatchesSame(other.Ns[o]))
+                else if (this.Edges[t].Char == other.Edges[o].Char)
+                    if (!this.Edges[t].Node.MatchesSame(other.Edges[o].Node))
                         return false;
             }
             if (!had)
-                if (!other.Ns[o].MatchesOnly(add, from + 1))
+                if (!other.Edges[o].Node.MatchesOnly(add, from + 1))
                     return false;
 
             return true;
@@ -113,13 +117,13 @@ namespace OnlineDAWG
 
         private bool matchesHelper(DawgNode other)
         {
-            if (this.Ns.Length != other.Ns.Length)
+            if (this.Edges.Length != other.Edges.Length)
                 return false;
-            for (int i = 0; i < Ns.Length; i++)
-                if (this.Cs[i] != other.Cs[i])
+            for (int i = 0; i < Edges.Length; i++)
+                if (this.Edges[i].Char != other.Edges[i].Char)
                     return false;
-            for (int i = 0; i < Ns.Length; i++)
-                if (!this.Ns[i].MatchesSame(other.Ns[i]))
+            for (int i = 0; i < Edges.Length; i++)
+                if (!this.Edges[i].Node.MatchesSame(other.Edges[i].Node))
                     return false;
             return true;
         }
@@ -138,23 +142,18 @@ namespace OnlineDAWG
         {
             if (Accepting)
                 yield return prefix;
-            for (int i = 0; i < Ns.Length; i++)
-                foreach (var suf in Ns[i].suffixes(prefix + Cs[i]))
+            for (int i = 0; i < Edges.Length; i++)
+                foreach (var suf in Edges[i].Node.suffixes(prefix + Edges[i].Char))
                     yield return suf;
         }
 
         public void InsertBlankAt(int pos)
         {
-            var newNs = new DawgNode[Ns.Length + 1];
-            Array.Copy(Ns, newNs, pos);
-            if (pos < Ns.Length)
-                Array.Copy(Ns, pos, newNs, pos + 1, Ns.Length - pos);
-            Ns = newNs;
-            var newCs = new char[Cs.Length + 1];
-            Array.Copy(Cs, newCs, pos);
-            if (pos < Cs.Length)
-                Array.Copy(Cs, pos, newCs, pos + 1, Cs.Length - pos);
-            Cs = newCs;
+            var newEdges = new DawgEdge[Edges.Length + 1];
+            Array.Copy(Edges, newEdges, pos);
+            if (pos < Edges.Length)
+                Array.Copy(Edges, pos, newEdges, pos + 1, Edges.Length - pos);
+            Edges = newEdges;
         }
     }
 }

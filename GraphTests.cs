@@ -39,7 +39,7 @@ namespace OnlineDAWG
         {
             if (node == null)
                 throw new Exception("Null node!");
-            if (node.Ns.Length != node.Cs.Length)
+            if (node.Edges.Length != node.Edges.Length)
                 throw new Exception("Ns != Cs");
             if (node != _starting && !node.IsBlank() && node.Hash != node.Suffixes().Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
                 throw new Exception("Wrong node hash");
@@ -56,8 +56,8 @@ namespace OnlineDAWG
             {
                 if (node != _starting && (!_nodes.GetValuesExact(node.Hash).Contains(node)))
                     throw new Exception("Normal node not in hash table!");
-                foreach (var n in node.Ns)
-                    verifyNode(n);
+                foreach (var e in node.Edges)
+                    verifyNode(e.Node);
             }
         }
 
