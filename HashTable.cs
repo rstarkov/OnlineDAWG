@@ -18,7 +18,7 @@ namespace OnlineDAWG
     /// </summary>
     class DawgHashTable : IEnumerable<DawgNode>
     {
-        private LinkedList<DawgNode>[] _table = new LinkedList<DawgNode>[65536];
+        private DawgNode[] _table = new DawgNode[65536];
         public int Count { get; private set; }
 
         /// <summary>
@@ -28,9 +28,8 @@ namespace OnlineDAWG
         public void Add(DawgNode value)
         {
             int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
-            if (_table[index] == null)
-                _table[index] = new LinkedList<DawgNode>();
-            _table[index].AddFirst(value);
+            value.HashNext = _table[index];
+            _table[index] = value;
             Count++;
         }
 
@@ -40,12 +39,23 @@ namespace OnlineDAWG
         public void Remove(DawgNode value)
         {
             int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
-            if (_table[index] == null)
-                return;
-            if (_table[index].Remove(value))
+            if (_table[index] == value)
+            {
                 Count--;
-            if (_table[index].Count == 0)
-                _table[index] = null;
+                _table[index] = _table[index].HashNext;
+                return;
+            }
+            var node = _table[index];
+            while (node != null)
+            {
+                if (node.HashNext == value)
+                {
+                    Count--;
+                    node.HashNext = node.HashNext.HashNext;
+                    return;
+                }
+                node = node.HashNext;
+            }
         }
 
         private static LinkedList<DawgNode> _empty = new LinkedList<DawgNode>();
@@ -55,20 +65,38 @@ namespace OnlineDAWG
         /// </summary>
         public IEnumerable<DawgNode> GetValuesExact(uint hash)
         {
-            return GetValuesApprox(hash).Where(n => n.Hash == hash);
+            var node = GetValuesApprox(hash);
+            while (node != null)
+            {
+                if (node.Hash == hash)
+                    yield return node;
+                node = node.HashNext;
+            }
         }
 
         /// <summary>
         /// Returns a list that contains all nodes with the specified hash, and potentially other nodes.
         /// This list must not be modified as it holds the actual data for the hash table.
         /// </summary>
-        public LinkedList<DawgNode> GetValuesApprox(uint hash)
+        public DawgNode GetValuesApprox(uint hash)
         {
             int index = (int) ((hash ^ (hash >> 16)) & 0xFFFF);
-            return _table[index] == null ? _empty : _table[index];
+            return _table[index];
         }
 
-        public IEnumerator<DawgNode> GetEnumerator() { return _table.Where(r => r != null).SelectMany(r => r).GetEnumerator(); }
+        public IEnumerator<DawgNode> GetEnumerator()
+        {
+            for (int h = 0; h < _table.Length; h++)
+            {
+                var node = _table[h];
+                while (node != null)
+                {
+                    yield return node;
+                    node = node.HashNext;
+                }
+            }
+        }
+
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
     }
 }

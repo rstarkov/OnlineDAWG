@@ -28,7 +28,7 @@ namespace OnlineDAWG
         /// <summary>Gets the number of edges in the graph.</summary>
         public int EdgeCount { get { return GetNodes().Sum(n => n.Edges.Length); } }
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
-        public long MemoryUsage { get { return (3 * IntPtr.Size + 6 * 4) * NodeCount + (IntPtr.Size + 4) * EdgeCount; } }
+        public long MemoryUsage { get { return (4 * IntPtr.Size + 6 * 4) * NodeCount + (IntPtr.Size + 4) * EdgeCount; } }
 
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
@@ -85,23 +85,22 @@ namespace OnlineDAWG
                 nexthash = FnvHash(value, index);
                 bool done = false;
                 var wantedhash = node.Edges[n].Node.Hash ^ nexthash;
-                var candidates = _nodes.GetValuesApprox(wantedhash);
-                var candidate = candidates.First;
+                var candidate = _nodes.GetValuesApprox(wantedhash);
                 while (candidate != null)
                 {
-                    if (candidate.Value.Hash == wantedhash)
+                    if (candidate.Hash == wantedhash)
                     {
-                        if (node.Edges[n].Node.MatchesSameWithAdd(value, index, candidate.Value))
+                        if (node.Edges[n].Node.MatchesSameWithAdd(value, index, candidate))
                         {
                             var old = node.Edges[n].Node;
-                            node.Edges[n].Node = candidate.Value;
+                            node.Edges[n].Node = candidate;
                             node.Edges[n].Node.RefCount++;
                             dereference(old);
                             done = true;
                             break;
                         }
                     }
-                    candidate = candidate.Next;
+                    candidate = candidate.HashNext;
                 }
                 if (done)
                     break;
@@ -174,9 +173,13 @@ namespace OnlineDAWG
             if (from == value.Length)
                 return _ending;
             var hash = FnvHash(value, from);
-            foreach (var n in _nodes.GetValuesApprox(hash))
+            var n = _nodes.GetValuesApprox(hash);
+            while (n != null)
+            {
                 if (n.Hash == hash && n.MatchesOnly(value, from))
                     return n;
+                n = n.HashNext;
+            }
 
             var node = new DawgNode(1) { Hash = hash };
             node.Edges[0].Char = value[from];

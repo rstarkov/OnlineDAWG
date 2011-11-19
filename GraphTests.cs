@@ -49,7 +49,7 @@ namespace OnlineDAWG
             {
                 if (node != _ending)
                     throw new Exception("Blank accepting node != _ending");
-                if (_nodes.GetValuesApprox(node.Hash).Contains(node))
+                if (_nodes.GetValuesExact(node.Hash).Contains(node))
                     throw new Exception("Blank terminating node is in hash table!");
             }
             else

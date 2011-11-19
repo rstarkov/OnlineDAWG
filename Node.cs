@@ -25,6 +25,7 @@ namespace OnlineDAWG
         public bool Accepting;
         public int RefCount;
         public uint Hash = 0;
+        public DawgNode HashNext;
 
         private static DawgEdge[] _edgesEmpty = new DawgEdge[0];
         public DawgNode(int blanks)
