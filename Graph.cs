@@ -27,6 +27,8 @@ namespace OnlineDAWG
         public int NodeCount { get { return _nodes.Count + 2; } }
         /// <summary>Gets the number of edges in the graph.</summary>
         public int EdgeCount { get { return GetNodes().Sum(n => n.Edges.Length); } }
+        /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
+        public long MemoryUsage { get { return 9 * 4 * NodeCount + 8 * EdgeCount; } }
 
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
@@ -258,7 +260,7 @@ namespace OnlineDAWG
 
             var nodes = new DawgNode[optimRead(stream)];
             for (int n = 0; n < nodes.Length; n++)
-                nodes[n] = new DawgNode(-1);
+                nodes[n] = new DawgNode(0);
             result._starting = nodes[optimRead(stream)];
             for (int n = 0; n < nodes.Length; n++)
             {

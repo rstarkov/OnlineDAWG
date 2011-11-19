@@ -26,10 +26,10 @@ namespace OnlineDAWG
         public int RefCount;
         public uint Hash = 0;
 
+        private static DawgEdge[] _edgesEmpty = new DawgEdge[0];
         public DawgNode(int blanks)
         {
-            if (blanks < 0) return;
-            Edges = new DawgEdge[blanks];
+            Edges = (blanks <= 0) ? _edgesEmpty : new DawgEdge[blanks];
         }
 
         public bool IsBlank()
