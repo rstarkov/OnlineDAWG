@@ -73,21 +73,9 @@ namespace OnlineDAWG
                     n = nmin;
                     node.InsertBlankAt(n);
                     node.Cs[n] = c;
-                }
-
-                if (node.Ns[n] == null)
-                {
                     node.Ns[n] = addNew(value, index);
                     node.Ns[n].RefCount++;
                     break;
-                }
-
-                if (node.Ns[n].RefCount > 1)
-                {
-                    var old = node.Ns[n];
-                    node.Ns[n] = duplicate(old, value, index);
-                    dereference(old);
-                    node.Ns[n].RefCount++;
                 }
 
                 nexthash = FnvHash(value, index);
@@ -113,6 +101,20 @@ namespace OnlineDAWG
                 }
                 if (done)
                     break;
+
+                if (node.Ns[n].RefCount > 1)
+                {
+                    var old = node.Ns[n];
+                    node.Ns[n] = new DawgNode(old.Ns.Length) { Hash = old.Hash, Accepting = old.Accepting };
+                    for (int i = 0; i < old.Ns.Length; i++)
+                    {
+                        node.Ns[n].Cs[i] = old.Cs[i];
+                        node.Ns[n].Ns[i] = old.Ns[i];
+                        node.Ns[n].Ns[i].RefCount++;
+                    }
+                    dereference(old);
+                    node.Ns[n].RefCount++;
+                }
 
                 node = node.Ns[n];
             }
@@ -147,22 +149,6 @@ namespace OnlineDAWG
                 node = node.Ns[n];
             }
             return node.Accepting;
-        }
-
-        private DawgNode duplicate(DawgNode node, string path, int from)
-        {
-            var result = new DawgNode(node.Ns.Length) { Hash = node.Hash };
-            for (int i = 0; i < node.Ns.Length; i++)
-            {
-                result.Cs[i] = node.Cs[i];
-                if (from < path.Length && node.Cs[i] == path[from])
-                    result.Ns[i] = duplicate(node.Ns[i], path, from + 1);
-                else
-                    result.Ns[i] = node.Ns[i];
-                result.Ns[i].RefCount++;
-            }
-            result.Accepting = node.Accepting;
-            return result;
         }
 
         private void dereference(DawgNode node)

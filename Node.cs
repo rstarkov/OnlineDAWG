@@ -152,7 +152,7 @@ namespace OnlineDAWG
             Ns = newNs;
             var newCs = new char[Cs.Length + 1];
             Array.Copy(Cs, newCs, pos);
-            if (pos < Ns.Length)
+            if (pos < Cs.Length)
                 Array.Copy(Cs, pos, newCs, pos + 1, Cs.Length - pos);
             Cs = newCs;
         }
