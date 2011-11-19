@@ -28,7 +28,7 @@ namespace OnlineDAWG
         /// <summary>Gets the number of edges in the graph.</summary>
         public int EdgeCount { get { return GetNodes().Sum(n => n.Edges.Length); } }
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
-        public long MemoryUsage { get { return 9 * 4 * NodeCount + 8 * EdgeCount; } }
+        public long MemoryUsage { get { return (3 * IntPtr.Size + 6 * 4) * NodeCount + (IntPtr.Size + 4) * EdgeCount; } }
 
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
