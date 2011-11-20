@@ -65,7 +65,6 @@ namespace OnlineDAWG
         /// <summary>Doubles the number of buckets in the hash table.</summary>
         private void grow()
         {
-            var start = System.DateTime.UtcNow;
             _mask = ((_mask + 1) << 1) - 1;
             _threshold *= 2;
             var old = _table;
@@ -84,7 +83,6 @@ namespace OnlineDAWG
                 }
                 old[o] = null;
             }
-            System.Console.WriteLine("**** Resized hash table. {0} seconds. ****", (System.DateTime.UtcNow - start).TotalSeconds);
         }
 
         /// <summary>

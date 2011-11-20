@@ -202,7 +202,8 @@ namespace OnlineDAWG
         }
 
         /// <summary>
-        /// Saves the DAWG in binary format to a file at the specified location.
+        /// Saves the DAWG in binary format to a file at the specified location. Note: to make it possible to modify
+        /// the graph using <see cref="Add"/> again, the <see cref="RebuildHashes"/> method must be called first.
         /// </summary>
         public void Save(string path)
         {
@@ -211,16 +212,35 @@ namespace OnlineDAWG
         }
 
         /// <summary>
-        /// Saves the DAWG in binary format to the specified stream.
+        /// Saves the DAWG in binary format to the specified stream. Note: to make it possible to modify
+        /// the graph using <see cref="Add"/> again, the <see cref="RebuildHashes"/> method must be called first.
         /// </summary>
         public void Save(Stream stream)
         {
-            var nodes = GetNodes().OrderByDescending(n => n.RefCount).ToArray();
-            var chars = new Dictionary<char, int>();
-            for (int i = 0; i < nodes.Length; i++)
+            // This method reuses the fields Hash and HashNext, destroying their earlier values.
+
+            // Relink all nodes into one single chain
+            var dummy = new DawgNode(0); // dummy node
+            var curnode = dummy;
+            foreach (var n in GetNodes())
             {
-                nodes[i].Hash = (uint) i;
-                foreach (var e in nodes[i].Edges)
+                if (n == _ending) // the ending node is handled separately
+                    continue;
+                curnode.HashNext = n;
+                curnode = n;
+            }
+            // Merge sort them by decreasing RefCount
+            var first = mergeSort(dummy.HashNext, NodeCount - 1);
+            // Prepend the ending node, because all links to it are always accepting (-0 = 0) and its RefCount is usually large.
+            _ending.HashNext = first;
+            first = _ending;
+            // Assign integer id's and establish char frequencies
+            curnode = first;
+            var chars = new Dictionary<char, int>();
+            for (int id = 0; curnode != null; id++, curnode = curnode.HashNext)
+            {
+                curnode.Hash = (uint) id;
+                foreach (var e in curnode.Edges)
                     if (chars.ContainsKey(e.Char))
                         chars[e.Char]++;
                     else
@@ -228,16 +248,19 @@ namespace OnlineDAWG
             }
             var charset = chars.OrderByDescending(kvp => kvp.Value).Select(kvp => kvp.Key).ToArray();
 
+            // Write out header
             stream.Write(Encoding.UTF8.GetBytes("DAWG.1"), 0, 6);
             optimWrite(stream, (uint) charset.Length);
             foreach (var c in charset)
                 optimWrite(stream, c);
-            optimWrite(stream, (uint) nodes.Length);
+            optimWrite(stream, (uint) NodeCount);
             optimWrite(stream, _starting.Hash);
-            foreach (var node in nodes)
+            // Write out nodes
+            curnode = first;
+            while (curnode != null)
             {
-                optimWrite(stream, (uint) (node.Edges.Length * 2 + (node.Accepting ? 1 : 0)));
-                foreach (var e in node.Edges)
+                optimWrite(stream, (uint) (curnode.Edges.Length * 2 + (curnode.Accepting ? 1 : 0)));
+                foreach (var e in curnode.Edges)
                 {
                     int f = 0;
                     for (; f < charset.Length; f++)
@@ -245,13 +268,57 @@ namespace OnlineDAWG
                             break;
                     optimWrite(stream, (uint) f);
                 }
-                foreach (var e in node.Edges)
+                foreach (var e in curnode.Edges)
                     optimWrite(stream, e.Node.Hash);
+                curnode = curnode.HashNext;
             }
+        }
+
+        private DawgNode mergeSort(DawgNode first, int count)
+        {
+            if (count <= 1)
+                return first;
+            // Divide
+            int count1 = count / 2;
+            int count2 = count - count1;
+            var first1 = first;
+            var first2 = first;
+            for (int i = 0; i < count1; i++)
+                first2 = first2.HashNext;
+            var next = first2;
+            for (int i = 0; i < count2; i++)
+                next = next.HashNext;
+            // Recurse
+            first1 = mergeSort(first1, count1);
+            first2 = mergeSort(first2, count2);
+            // Merge
+            DawgNode dummy = new DawgNode(0);
+            DawgNode cur = dummy;
+            while (count1 > 0 || count2 > 0)
+            {
+                if ((count2 <= 0) || (count1 > 0 && first1.RefCount >= first2.RefCount))
+                {
+                    cur.HashNext = first1;
+                    cur = cur.HashNext;
+                    first1 = first1.HashNext;
+                    count1--;
+                }
+                else
+                {
+                    cur.HashNext = first2;
+                    cur = cur.HashNext;
+                    first2 = first2.HashNext;
+                    count2--;
+                }
+            }
+            cur.HashNext = next;
+            return dummy.HashNext;
         }
 
         /// <summary>
         /// Loads the DAWG from the specified stream, assuming it was saved by <see cref="Save"/>.
+        /// Note: to make it possible to modify the graph using <see cref="Add"/> again, the
+        /// <see cref="RebuildHashes"/> method must be called first.
         /// </summary>
         public static DawgGraph Load(Stream stream)
         {
