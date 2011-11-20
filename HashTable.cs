@@ -19,6 +19,8 @@ namespace OnlineDAWG
     class DawgHashTable : IEnumerable<DawgNode>
     {
         private DawgNode[] _table = new DawgNode[65536];
+        private int _mask = 0xFFFF;
+        private int _threshold = 65536 * 3;
         public int Count { get; private set; }
 
         /// <summary>
@@ -27,10 +29,12 @@ namespace OnlineDAWG
         /// </summary>
         public void Add(DawgNode value)
         {
-            int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
+            int index = (int) (value.Hash & _mask);
             value.HashNext = _table[index];
             _table[index] = value;
             Count++;
+            if (Count > _threshold)
+                grow();
         }
 
         /// <summary>
@@ -38,7 +42,7 @@ namespace OnlineDAWG
         /// </summary>
         public void Remove(DawgNode value)
         {
-            int index = (int) ((value.Hash ^ (value.Hash >> 16)) & 0xFFFF);
+            int index = (int) (value.Hash & _mask);
             if (_table[index] == value)
             {
                 Count--;
@@ -58,14 +62,37 @@ namespace OnlineDAWG
             }
         }
 
-        private static LinkedList<DawgNode> _empty = new LinkedList<DawgNode>();
+        /// <summary>Doubles the number of buckets in the hash table.</summary>
+        private void grow()
+        {
+            var start = System.DateTime.UtcNow;
+            _mask = ((_mask + 1) << 1) - 1;
+            _threshold *= 2;
+            var old = _table;
+            _table = new DawgNode[old.Length * 2];
+            // Redistribute all the nodes into the new buckets
+            for (int o = 0; o < old.Length; o++)
+            {
+                var n = old[o];
+                while (n != null)
+                {
+                    var next = n.HashNext;
+                    int index = (int) (n.Hash & _mask);
+                    n.HashNext = _table[index];
+                    _table[index] = n;
+                    n = next;
+                }
+                old[o] = null;
+            }
+            System.Console.WriteLine("**** Resized hash table. {0} seconds. ****", (System.DateTime.UtcNow - start).TotalSeconds);
+        }
 
         /// <summary>
         /// Enumerates all DAWG nodes that have the specified hash.
         /// </summary>
         public IEnumerable<DawgNode> GetValuesExact(uint hash)
         {
-            var node = GetValuesApprox(hash);
+            var node = GetFirstInBucket(hash);
             while (node != null)
             {
                 if (node.Hash == hash)
@@ -78,9 +105,9 @@ namespace OnlineDAWG
         /// Returns a list that contains all nodes with the specified hash, and potentially other nodes.
         /// This list must not be modified as it holds the actual data for the hash table.
         /// </summary>
-        public DawgNode GetValuesApprox(uint hash)
+        public DawgNode GetFirstInBucket(uint hash)
         {
-            int index = (int) ((hash ^ (hash >> 16)) & 0xFFFF);
+            int index = (int) (hash & _mask);
             return _table[index];
         }
 
@@ -98,5 +125,7 @@ namespace OnlineDAWG
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
+
+        public long MemoryUsage { get { return System.IntPtr.Size * (_table.Length + 3 + 4); } }
     }
 }

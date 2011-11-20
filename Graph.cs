@@ -26,9 +26,9 @@ namespace OnlineDAWG
         /// <summary>Gets the number of nodes in the graph.</summary>
         public int NodeCount { get { return _nodes.Count + 2; } }
         /// <summary>Gets the number of edges in the graph.</summary>
-        public int EdgeCount { get { return GetNodes().Sum(n => n.Edges.Length); } }
+        public int EdgeCount { get; private set; }
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
-        public long MemoryUsage { get { return (4 * IntPtr.Size + 6 * 4) * NodeCount + (IntPtr.Size + 4) * EdgeCount; } }
+        public long MemoryUsage { get { return (7 * IntPtr.Size + 2 * 4) * (long) NodeCount + (2 * IntPtr.Size) * (long) EdgeCount + _nodes.MemoryUsage; } }
 
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
@@ -79,13 +79,14 @@ namespace OnlineDAWG
                     node.Edges[n].Char = c;
                     node.Edges[n].Node = addNew(value, index);
                     node.Edges[n].Node.RefCount++;
+                    EdgeCount++;
                     break;
                 }
 
                 nexthash = FnvHash(value, index);
                 bool done = false;
                 var wantedhash = node.Edges[n].Node.Hash ^ nexthash;
-                var candidate = _nodes.GetValuesApprox(wantedhash);
+                var candidate = _nodes.GetFirstInBucket(wantedhash);
                 while (candidate != null)
                 {
                     if (candidate.Hash == wantedhash)
@@ -115,6 +116,7 @@ namespace OnlineDAWG
                         newn.Edges[i].Node = old.Edges[i].Node;
                         newn.Edges[i].Node.RefCount++;
                     }
+                    EdgeCount += old.Edges.Length;
                     dereference(old);
                     newn.RefCount++;
                 }
@@ -163,6 +165,7 @@ namespace OnlineDAWG
             {
                 if (!node.IsBlank())
                     _nodes.Remove(node);
+                EdgeCount -= node.Edges.Length;
                 for (int i = 0; i < node.Edges.Length; i++)
                     dereference(node.Edges[i].Node);
             }
@@ -173,7 +176,7 @@ namespace OnlineDAWG
             if (from == value.Length)
                 return _ending;
             var hash = FnvHash(value, from);
-            var n = _nodes.GetValuesApprox(hash);
+            var n = _nodes.GetFirstInBucket(hash);
             while (n != null)
             {
                 if (n.Hash == hash && n.MatchesOnly(value, from))
@@ -185,6 +188,7 @@ namespace OnlineDAWG
             node.Edges[0].Char = value[from];
             node.Edges[0].Node = addNew(value, from + 1);
             node.Edges[0].Node.RefCount++;
+            EdgeCount++;
             _nodes.Add(node);
             return node;
         }
@@ -319,22 +323,12 @@ namespace OnlineDAWG
             return res;
         }
 
-        internal DawgNode[] GetNodes()
+        internal IEnumerable<DawgNode> GetNodes()
         {
-            var allnodes = new HashSet<DawgNode>();
-            var queue = new Queue<DawgNode>();
-            queue.Enqueue(_starting);
-            while (queue.Any())
-            {
-                var n = queue.Dequeue();
-                if (allnodes.Contains(n))
-                    continue;
-                allnodes.Add(n);
-                foreach (var e in n.Edges)
-                    if (!allnodes.Contains(e.Node))
-                        queue.Enqueue(e.Node);
-            }
-            return allnodes.ToArray();
+            yield return _starting;
+            foreach (var node in _nodes)
+                yield return node;
+            yield return _ending;
         }
     }
 }

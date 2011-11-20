@@ -71,6 +71,8 @@ namespace OnlineDAWG
             g.Add("fo"); g.Verify();
             assert(g.WordCount == 3);
             assert(g.NodeCount == 5);
+            assert(g.NodeCount == g.GetNodes().Count());
+            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
 
             g = new DawgGraph();
             g.Add("xac"); g.Verify(); assert(g.NodeCount == 4);
@@ -83,6 +85,8 @@ namespace OnlineDAWG
             g.Add("yacd"); g.Verify(); assert(g.NodeCount == 7);
             assert(g.WordCount == 8);
             assert(g.NodeCount == 7);
+            assert(g.NodeCount == g.GetNodes().Count());
+            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
 
             g = new DawgGraph();
             g.Add("xab"); g.Verify();
@@ -92,6 +96,8 @@ namespace OnlineDAWG
             g.Add("xabc"); g.Verify();
             assert(g.WordCount == 5);
             assert(g.NodeCount == 7);
+            assert(g.NodeCount == g.GetNodes().Count());
+            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
 
             var ms = new MemoryStream();
             g.Save(ms);
