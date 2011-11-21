@@ -27,7 +27,7 @@ namespace OnlineDAWG
                     for (int j = i + 1; j < arr.Length; j++)
                         if (arr[i] == (object) arr[j])
                             throw new Exception("Duplicate nodes");
-                        else if (arr[i].MatchesSame(arr[j]))
+                        else if (matchesSame(arr[i], arr[j]))
                             throw new Exception("Graph is not optimal!");
             }
             if (_hashtable.Contains(_starting))
