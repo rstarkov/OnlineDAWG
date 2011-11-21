@@ -17,9 +17,10 @@ namespace OnlineDAWG
 {
     public partial class DawgGraph
     {
-        private DawgNode _starting = new DawgNode(0);
-        private DawgNode _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
-        private DawgHashTable _hashtable = new DawgHashTable();
+        private int _starting;
+        private int _ending;
+        private DawgNodeList _nodes = new DawgNodeList();
+        private DawgHashTable _hashtable;
 
         /// <summary>Gets the number of distinct "words" (values added with <see cref="Add"/>) that this graph accepts.</summary>
         public int WordCount { get; private set; }
@@ -30,6 +31,18 @@ namespace OnlineDAWG
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
         public long MemoryUsage { get { return (8 * IntPtr.Size + 2 * 4) * (long) NodeCount + (2 * IntPtr.Size) * (long) EdgeCount + _hashtable.MemoryUsage; } }
 
+        public DawgGraph()
+        {
+            _hashtable = new DawgHashTable(_nodes);
+            _starting = _nodes.Alloc();
+            _nodes[_starting].InitEdges(0);
+            _ending = _nodes.Alloc();
+            var eI = _nodes[_ending];
+            eI.InitEdges(0);
+            eI.Accepting = true;
+            eI.Hash = 2166136261;
+        }
+
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
         /// is already present; filter out any duplicates using the <see cref="Contains"/> method.
@@ -37,23 +50,30 @@ namespace OnlineDAWG
         public void Add(string value)
         {
             var node = _starting;
+            var nodeI = _nodes[node];
             uint nexthash = 0;
             for (int index = 1; index <= value.Length + 1; index++)
             {
                 if (node != _starting)
                 {
-                    if (!node.IsBlank())
+                    if (!nodeI.IsBlank)
                         _hashtable.Remove(node);
-                    node.Hash ^= nexthash;
+                    nodeI.Hash ^= nexthash;
                     _hashtable.Add(node);
                 }
 
                 if (node == _ending)
-                    _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
+                {
+                    _ending = _nodes.Alloc();
+                    var eI = _nodes[_ending];
+                    eI.InitEdges(0);
+                    eI.Accepting = true;
+                    eI.Hash = 2166136261;
+                }
 
                 if (index - 1 == value.Length)
                 {
-                    node.Accepting = true;
+                    nodeI.Accepting = true;
                     break;
                 }
 
@@ -61,13 +81,13 @@ namespace OnlineDAWG
 
                 // Find the outgoing edge index, or insert it if not there yet
                 int n = -1;
-                int nmin = 0, nmax = node.Edges.Length - 1;
+                int nmin = 0, nmax = nodeI.Edges.Length - 1;
                 while (nmin <= nmax)
                 {
                     n = (nmin + nmax) >> 1;
-                    if (node.Edges[n].Char < c)
+                    if (nodeI.Edges[n].Char < c)
                         nmin = n + 1;
-                    else if (node.Edges[n].Char > c)
+                    else if (nodeI.Edges[n].Char > c)
                         nmax = n - 1;
                     else // equal
                         break;
@@ -75,53 +95,60 @@ namespace OnlineDAWG
                 if (nmin > nmax)
                 {
                     n = nmin;
-                    node.InsertBlankAt(n);
-                    node.Edges[n].Char = c;
-                    node.Edges[n].Node = addNew(value, index);
-                    node.Edges[n].Node.RefCount++;
+                    nodeI.InsertBlankAt(n);
+                    nodeI.Edges[n].Char = c;
+                    nodeI.Edges[n].Node = addNew(value, index);
+                    _nodes[nodeI.Edges[n].Node].IncRefCount();
                     EdgeCount++;
                     break;
                 }
 
                 nexthash = FnvHash(value, index);
                 bool done = false;
-                var wantedhash = node.Edges[n].Node.Hash ^ nexthash;
+                var wantedhash = _nodes[nodeI.Edges[n].Node].Hash ^ nexthash;
                 var candidate = _hashtable.GetFirstInBucket(wantedhash);
-                while (candidate != null)
+                while (candidate != 0)
                 {
-                    if (candidate.Hash == wantedhash)
+                    var candidateI = _nodes[candidate];
+                    if (candidateI.Hash == wantedhash)
                     {
-                        if (matchesSameWithAdd(node.Edges[n].Node, value, index, candidate))
+                        if (matchesSameWithAdd(_nodes[nodeI.Edges[n].Node], value, index, candidateI))
                         {
-                            var old = node.Edges[n].Node;
-                            node.Edges[n].Node = candidate;
-                            node.Edges[n].Node.RefCount++;
+                            var old = nodeI.Edges[n].Node;
+                            nodeI.Edges[n].Node = candidate;
+                            _nodes[nodeI.Edges[n].Node].IncRefCount();
                             dereference(old);
                             done = true;
                             break;
                         }
                     }
-                    candidate = candidate.HashNext;
+                    candidate = candidateI.Next;
                 }
                 if (done)
                     break;
 
-                if (node.Edges[n].Node.RefCount > 1)
+                if (_nodes[nodeI.Edges[n].Node].RefCount > 1)
                 {
-                    var old = node.Edges[n].Node;
-                    var newn = node.Edges[n].Node = new DawgNode(old.Edges.Length) { Hash = old.Hash, Accepting = old.Accepting };
-                    for (int i = 0; i < old.Edges.Length; i++)
+                    var old = nodeI.Edges[n].Node;
+                    var oldI = _nodes[old];
+                    nodeI.Edges[n].Node = _nodes.Alloc();
+                    var newI = _nodes[nodeI.Edges[n].Node];
+                    newI.InitEdges(oldI.Edges.Length);
+                    newI.Hash = oldI.Hash;
+                    newI.Accepting = oldI.Accepting;
+                    for (int i = 0; i < oldI.Edges.Length; i++)
                     {
-                        newn.Edges[i].Char = old.Edges[i].Char;
-                        newn.Edges[i].Node = old.Edges[i].Node;
-                        newn.Edges[i].Node.RefCount++;
+                        newI.Edges[i].Char = oldI.Edges[i].Char;
+                        newI.Edges[i].Node = oldI.Edges[i].Node;
+                        _nodes[newI.Edges[i].Node].IncRefCount();
                     }
-                    EdgeCount += old.Edges.Length;
+                    EdgeCount += oldI.Edges.Length;
                     dereference(old);
-                    newn.RefCount++;
+                    newI.IncRefCount();
                 }
 
-                node = node.Edges[n].Node;
+                node = nodeI.Edges[n].Node;
+                nodeI = _nodes[node];
             }
 
             WordCount++;
@@ -133,153 +160,160 @@ namespace OnlineDAWG
         public bool Contains(string value)
         {
             var node = _starting;
+            var nodeI = _nodes[node];
             for (int index = 0; index < value.Length; index++)
             {
                 char c = value[index];
 
                 int n = -1;
-                int nmin = 0, nmax = node.Edges.Length - 1;
+                int nmin = 0, nmax = nodeI.Edges.Length - 1;
                 while (nmin <= nmax)
                 {
                     n = (nmin + nmax) >> 1;
-                    if (node.Edges[n].Char < c)
+                    if (nodeI.Edges[n].Char < c)
                         nmin = n + 1;
-                    else if (node.Edges[n].Char > c)
+                    else if (nodeI.Edges[n].Char > c)
                         nmax = n - 1;
                     else // equal
                         break;
                 }
                 if (nmin > nmax)
                     return false;
-                node = node.Edges[n].Node;
+                node = nodeI.Edges[n].Node;
+                nodeI = _nodes[node];
             }
-            return node.Accepting;
+            return nodeI.Accepting;
         }
 
-        private void dereference(DawgNode node)
+        private void dereference(int node)
         {
-            node.RefCount--;
-            if (node.RefCount < 0)
+            var nodeI = _nodes[node];
+            nodeI.DecRefCount();
+            if (nodeI.RefCount < 0)
                 throw new Exception("836");
-            if (node.RefCount == 0)
+            if (nodeI.RefCount == 0)
             {
-                if (!node.IsBlank())
+                if (!nodeI.IsBlank)
                     _hashtable.Remove(node);
-                EdgeCount -= node.Edges.Length;
-                for (int i = 0; i < node.Edges.Length; i++)
-                    dereference(node.Edges[i].Node);
+                EdgeCount -= nodeI.Edges.Length;
+                for (int i = 0; i < nodeI.Edges.Length; i++)
+                    dereference(nodeI.Edges[i].Node);
+                _nodes.Dealloc(node);
             }
         }
 
-        private DawgNode addNew(string value, int from)
+        private int addNew(string value, int from)
         {
             if (from == value.Length)
                 return _ending;
             var hash = FnvHash(value, from);
             var n = _hashtable.GetFirstInBucket(hash);
-            while (n != null)
+            while (n != 0)
             {
-                if (n.Hash == hash && matchesOnly(n, value, from))
+                var nI = _nodes[n];
+                if (nI.Hash == hash && matchesOnly(nI, value, from))
                     return n;
-                n = n.HashNext;
+                n = nI.Next;
             }
 
-            var node = new DawgNode(1) { Hash = hash };
-            node.Edges[0].Char = value[from];
-            node.Edges[0].Node = addNew(value, from + 1);
-            node.Edges[0].Node.RefCount++;
+            var node = _nodes.Alloc();
+            var nodeI = _nodes[node];
+            nodeI.InitEdges(1);
+            nodeI.Hash = hash;
+            nodeI.Edges[0].Char = value[from];
+            nodeI.Edges[0].Node = addNew(value, from + 1);
+            _nodes[nodeI.Edges[0].Node].IncRefCount();
             EdgeCount++;
             _hashtable.Add(node);
             return node;
         }
 
-        private static bool matchesOnly(DawgNode thisNode, string value, int from)
+        private bool matchesOnly(DawgNodeItem nodeI, string value, int from)
         {
-            var node = thisNode;
             for (; from < value.Length; from++)
             {
-                if (node.Edges.Length != 1) return false;
-                if (node.Edges[0].Char != value[from]) return false;
-                node = node.Edges[0].Node;
+                if (nodeI.Edges.Length != 1) return false;
+                if (nodeI.Edges[0].Char != value[from]) return false;
+                nodeI = _nodes[nodeI.Edges[0].Node];
             }
-            return node.Accepting && node.IsBlank();
+            return nodeI.Accepting && nodeI.IsBlank;
         }
 
-        private static bool matchesSame(DawgNode thisNode, DawgNode otherNode)
+        private bool matchesSame(DawgNodeItem thisI, DawgNodeItem otherI)
         {
-            if (thisNode.Accepting != otherNode.Accepting)
+            if (thisI.Accepting != otherI.Accepting)
                 return false;
-            return matchesHelper(thisNode, otherNode);
+            return matchesHelper(thisI, otherI);
         }
 
-        private static bool matchesSameWithAdd(DawgNode thisNode, string add, int from, DawgNode otherNode)
+        private bool matchesSameWithAdd(DawgNodeItem thisI, string add, int from, DawgNodeItem otherI)
         {
-            if ((thisNode.Accepting || from == add.Length) != otherNode.Accepting)
+            if ((thisI.Accepting || from == add.Length) != otherI.Accepting)
                 return false;
             if (from == add.Length)
-                return matchesHelper(thisNode, otherNode);
-            if (thisNode.Edges.Length < otherNode.Edges.Length - 1 || thisNode.Edges.Length > otherNode.Edges.Length)
+                return matchesHelper(thisI, otherI);
+            if (thisI.Edges.Length < otherI.Edges.Length - 1 || thisI.Edges.Length > otherI.Edges.Length)
                 return false;
 
             // Shallow test to make sure the characters match
             char c = add[from];
             bool had = false;
             int t, o;
-            for (t = o = 0; t < thisNode.Edges.Length && o < otherNode.Edges.Length; t++, o++)
+            for (t = o = 0; t < thisI.Edges.Length && o < otherI.Edges.Length; t++, o++)
             {
-                if (otherNode.Edges[o].Char == c)
+                if (otherI.Edges[o].Char == c)
                 {
                     had = true;
-                    if (thisNode.Edges[t].Char != c)
+                    if (thisI.Edges[t].Char != c)
                         t--;
                 }
-                else if (thisNode.Edges[t].Char == c)
+                else if (thisI.Edges[t].Char == c)
                     return false;
-                else if (thisNode.Edges[t].Char != otherNode.Edges[o].Char)
+                else if (thisI.Edges[t].Char != otherI.Edges[o].Char)
                     return false;
             }
-            if (!had && (t != thisNode.Edges.Length || o != otherNode.Edges.Length - 1 || c != otherNode.Edges[o].Char))
+            if (!had && (t != thisI.Edges.Length || o != otherI.Edges.Length - 1 || c != otherI.Edges[o].Char))
                 return false;
 
             // Deep test to ensure that the nodes match
             had = false;
-            for (t = o = 0; t < thisNode.Edges.Length && o < otherNode.Edges.Length; t++, o++)
+            for (t = o = 0; t < thisI.Edges.Length && o < otherI.Edges.Length; t++, o++)
             {
-                if (otherNode.Edges[o].Char == c)
+                if (otherI.Edges[o].Char == c)
                 {
                     had = true;
-                    if (thisNode.Edges[t].Char == c)
+                    if (thisI.Edges[t].Char == c)
                     {
-                        if (!matchesSameWithAdd(thisNode.Edges[t].Node, add, from + 1, otherNode.Edges[o].Node))
+                        if (!matchesSameWithAdd(_nodes[thisI.Edges[t].Node], add, from + 1, _nodes[otherI.Edges[o].Node]))
                             return false;
                     }
                     else
                     {
-                        if (!matchesOnly(otherNode.Edges[o].Node, add, from + 1))
+                        if (!matchesOnly(_nodes[otherI.Edges[o].Node], add, from + 1))
                             return false;
                         t--;
                     }
                 }
-                else if (thisNode.Edges[t].Char == otherNode.Edges[o].Char)
-                    if (!matchesSame(thisNode.Edges[t].Node, otherNode.Edges[o].Node))
+                else if (thisI.Edges[t].Char == otherI.Edges[o].Char)
+                    if (!matchesSame(_nodes[thisI.Edges[t].Node], _nodes[otherI.Edges[o].Node]))
                         return false;
             }
             if (!had)
-                if (!matchesOnly(otherNode.Edges[o].Node, add, from + 1))
+                if (!matchesOnly(_nodes[otherI.Edges[o].Node], add, from + 1))
                     return false;
 
             return true;
         }
 
-        private static bool matchesHelper(DawgNode thisNode, DawgNode otherNode)
+        private bool matchesHelper(DawgNodeItem thisI, DawgNodeItem otherI)
         {
-            if (thisNode.Edges.Length != otherNode.Edges.Length)
+            if (thisI.Edges.Length != otherI.Edges.Length)
                 return false;
-            for (int i = 0; i < thisNode.Edges.Length; i++)
-                if (thisNode.Edges[i].Char != otherNode.Edges[i].Char)
+            for (int i = 0; i < thisI.Edges.Length; i++)
+                if (thisI.Edges[i].Char != otherI.Edges[i].Char)
                     return false;
-            for (int i = 0; i < thisNode.Edges.Length; i++)
-                if (!matchesSame(thisNode.Edges[i].Node, otherNode.Edges[i].Node))
+            for (int i = 0; i < thisI.Edges.Length; i++)
+                if (!matchesSame(_nodes[thisI.Edges[i].Node], _nodes[otherI.Edges[i].Node]))
                     return false;
             return true;
         }
@@ -292,6 +326,7 @@ namespace OnlineDAWG
             return hash;
         }
 
+#if false
         /// <summary>
         /// Saves the DAWG in binary format to a file at the specified location. Note: to make it possible to modify
         /// the graph using <see cref="Add"/> again, the <see cref="RebuildHashes"/> method must be called first.
@@ -317,18 +352,18 @@ namespace OnlineDAWG
             {
                 if (n == _ending) // the ending node is handled separately
                     continue;
-                curnode.HashNext = n;
+                curnode.Next = n;
                 curnode = n;
             }
             // Merge sort them by decreasing RefCount
-            var first = mergeSort(dummy.HashNext, NodeCount - 1);
+            var first = mergeSort(dummy.Next, NodeCount - 1);
             // Prepend the ending node, because all links to it are always accepting (-0 = 0) and its RefCount is usually large.
-            _ending.HashNext = first;
+            _ending.Next = first;
             first = _ending;
             // Assign integer id's and establish char frequencies
             curnode = first;
             var chars = new Dictionary<char, int>();
-            for (int id = 0; curnode != null; id++, curnode = curnode.HashNext)
+            for (int id = 0; curnode != null; id++, curnode = curnode.Next)
             {
                 curnode.Hash = (uint) id;
                 foreach (var e in curnode.Edges)
@@ -361,49 +396,49 @@ namespace OnlineDAWG
                 }
                 foreach (var e in curnode.Edges)
                     optimWrite(stream, e.Node.Hash);
-                curnode = curnode.HashNext;
+                curnode = curnode.Next;
             }
         }
 
-        private DawgNode mergeSort(DawgNode first, int count)
+        private int mergeSort(int ifirst, int count)
         {
             if (count <= 1)
-                return first;
+                return ifirst;
             // Divide
             int count1 = count / 2;
             int count2 = count - count1;
-            var first1 = first;
-            var first2 = first;
+            var first1 = ifirst;
+            var first2 = ifirst;
             for (int i = 0; i < count1; i++)
-                first2 = first2.HashNext;
+                first2 = first2.Next;
             var next = first2;
             for (int i = 0; i < count2; i++)
-                next = next.HashNext;
+                next = next.Next;
             // Recurse
             first1 = mergeSort(first1, count1);
             first2 = mergeSort(first2, count2);
             // Merge
-            DawgNode dummy = new DawgNode(0);
-            DawgNode cur = dummy;
+            int idummy = new DawgNode(0);
+            int icur = idummy;
             while (count1 > 0 || count2 > 0)
             {
                 if ((count2 <= 0) || (count1 > 0 && first1.RefCount >= first2.RefCount))
                 {
-                    cur.HashNext = first1;
-                    cur = cur.HashNext;
-                    first1 = first1.HashNext;
+                    icur.Next = first1;
+                    icur = icur.Next;
+                    first1 = first1.Next;
                     count1--;
                 }
                 else
                 {
-                    cur.HashNext = first2;
-                    cur = cur.HashNext;
-                    first2 = first2.HashNext;
+                    icur.Next = first2;
+                    icur = icur.Next;
+                    first2 = first2.Next;
                     count2--;
                 }
             }
-            cur.HashNext = next;
-            return dummy.HashNext;
+            icur.Next = next;
+            return idummy.Next;
         }
 
         /// <summary>
@@ -439,6 +474,7 @@ namespace OnlineDAWG
             }
             return result;
         }
+#endif
 
         private static int fillBuffer(Stream stream, byte[] buffer, int offset, int length)
         {
@@ -483,10 +519,10 @@ namespace OnlineDAWG
 
         internal IEnumerable<DawgNode> GetNodes()
         {
-            yield return _starting;
+            yield return _nodes.GetCopy(_starting);
             foreach (var node in _hashtable)
-                yield return node;
-            yield return _ending;
+                yield return _nodes.GetCopy(node);
+            yield return _nodes.GetCopy(_ending);
         }
     }
 }

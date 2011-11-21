@@ -15,55 +15,72 @@ namespace OnlineDAWG
 {
     struct DawgEdge
     {
-        public DawgNode Node;
+        public int Node;
         public char Char;
     }
 
-    class DawgNode
+    struct DawgNode
     {
         public DawgEdge[] Edges;
         public bool Accepting;
         public int RefCount;
-        public uint Hash = 0;
-        public DawgNode HashNext;
+        public uint Hash;
+        public int Next;
 
-        private static DawgEdge[] _edgesEmpty = new DawgEdge[0];
-        public DawgNode(int blanks)
+        //public override string ToString()
+        //{
+        //    return "Node: " + string.Join("|", Suffixes().Select(s => s == "" ? "<acc>" : s).ToArray());
+        //}
+
+        //public IEnumerable<string> Suffixes()
+        //{
+        //    return suffixes("");
+        //}
+
+        //private IEnumerable<string> suffixes(string prefix)
+        //{
+        //    if (Accepting)
+        //        yield return prefix;
+        //    for (int i = 0; i < Edges.Length; i++)
+        //        foreach (var suf in Edges[i].Node.suffixes(prefix + Edges[i].Char))
+        //            yield return suf;
+        //}
+    }
+
+    struct DawgNodeItem
+    {
+        private DawgNode[] _list;
+        private int _index;
+
+        public DawgNodeItem(DawgNode[] list, int index)
         {
-            Edges = (blanks <= 0) ? _edgesEmpty : new DawgEdge[blanks];
+            _list = list;
+            _index = index;
         }
 
-        public bool IsBlank()
-        {
-            return Edges.Length == 0;
-        }
-
-        public override string ToString()
-        {
-            return "Node: " + string.Join("|", Suffixes().Select(s => s == "" ? "<acc>" : s).ToArray());
-        }
-
-        public IEnumerable<string> Suffixes()
-        {
-            return suffixes("");
-        }
-
-        private IEnumerable<string> suffixes(string prefix)
-        {
-            if (Accepting)
-                yield return prefix;
-            for (int i = 0; i < Edges.Length; i++)
-                foreach (var suf in Edges[i].Node.suffixes(prefix + Edges[i].Char))
-                    yield return suf;
-        }
+        public DawgEdge[] Edges { get { return _list[_index].Edges; } }
+        public bool Accepting { get { return _list[_index].Accepting; } set { _list[_index].Accepting = value; } }
+        public int RefCount { get { return _list[_index].RefCount; } }
+        public uint Hash { get { return _list[_index].Hash; } set { _list[_index].Hash = value; } }
+        public int Next { get { return _list[_index].Next; } set { _list[_index].Next = value; } }
+        public bool IsBlank { get { return _list[_index].Edges.Length == 0; } }
 
         public void InsertBlankAt(int pos)
         {
-            var newEdges = new DawgEdge[Edges.Length + 1];
-            Array.Copy(Edges, newEdges, pos);
-            if (pos < Edges.Length)
-                Array.Copy(Edges, pos, newEdges, pos + 1, Edges.Length - pos);
-            Edges = newEdges;
+            var newEdges = new DawgEdge[_list[_index].Edges.Length + 1];
+            Array.Copy(_list[_index].Edges, newEdges, pos);
+            if (pos < _list[_index].Edges.Length)
+                Array.Copy(_list[_index].Edges, pos, newEdges, pos + 1, _list[_index].Edges.Length - pos);
+            _list[_index].Edges = newEdges;
         }
+
+        private static DawgEdge[] _edgesEmpty = new DawgEdge[0];
+        public void InitEdges(int edges)
+        {
+            _list[_index].Edges = (edges <= 0) ? _edgesEmpty : new DawgEdge[edges];
+        }
+
+        public void IncRefCount() { _list[_index].RefCount++; }
+        public void DecRefCount() { _list[_index].RefCount--; }
     }
 }
