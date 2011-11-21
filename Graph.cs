@@ -19,16 +19,16 @@ namespace OnlineDAWG
     {
         private DawgNode _starting = new DawgNode(0);
         private DawgNode _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
-        private DawgHashTable _nodes = new DawgHashTable();
+        private DawgHashTable _hashtable = new DawgHashTable();
 
         /// <summary>Gets the number of distinct "words" (values added with <see cref="Add"/>) that this graph accepts.</summary>
         public int WordCount { get; private set; }
         /// <summary>Gets the number of nodes in the graph.</summary>
-        public int NodeCount { get { return _nodes.Count + 2; } }
+        public int NodeCount { get { return _hashtable.Count + 2; } }
         /// <summary>Gets the number of edges in the graph.</summary>
         public int EdgeCount { get; private set; }
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
-        public long MemoryUsage { get { return (8 * IntPtr.Size + 2 * 4) * (long) NodeCount + (2 * IntPtr.Size) * (long) EdgeCount + _nodes.MemoryUsage; } }
+        public long MemoryUsage { get { return (8 * IntPtr.Size + 2 * 4) * (long) NodeCount + (2 * IntPtr.Size) * (long) EdgeCount + _hashtable.MemoryUsage; } }
 
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
@@ -43,9 +43,9 @@ namespace OnlineDAWG
                 if (node != _starting)
                 {
                     if (!node.IsBlank())
-                        _nodes.Remove(node);
+                        _hashtable.Remove(node);
                     node.Hash ^= nexthash;
-                    _nodes.Add(node);
+                    _hashtable.Add(node);
                 }
 
                 if (node == _ending)
@@ -86,7 +86,7 @@ namespace OnlineDAWG
                 nexthash = FnvHash(value, index);
                 bool done = false;
                 var wantedhash = node.Edges[n].Node.Hash ^ nexthash;
-                var candidate = _nodes.GetFirstInBucket(wantedhash);
+                var candidate = _hashtable.GetFirstInBucket(wantedhash);
                 while (candidate != null)
                 {
                     if (candidate.Hash == wantedhash)
@@ -164,7 +164,7 @@ namespace OnlineDAWG
             if (node.RefCount == 0)
             {
                 if (!node.IsBlank())
-                    _nodes.Remove(node);
+                    _hashtable.Remove(node);
                 EdgeCount -= node.Edges.Length;
                 for (int i = 0; i < node.Edges.Length; i++)
                     dereference(node.Edges[i].Node);
@@ -176,7 +176,7 @@ namespace OnlineDAWG
             if (from == value.Length)
                 return _ending;
             var hash = FnvHash(value, from);
-            var n = _nodes.GetFirstInBucket(hash);
+            var n = _hashtable.GetFirstInBucket(hash);
             while (n != null)
             {
                 if (n.Hash == hash && n.MatchesOnly(value, from))
@@ -189,7 +189,7 @@ namespace OnlineDAWG
             node.Edges[0].Node = addNew(value, from + 1);
             node.Edges[0].Node.RefCount++;
             EdgeCount++;
-            _nodes.Add(node);
+            _hashtable.Add(node);
             return node;
         }
 
@@ -393,7 +393,7 @@ namespace OnlineDAWG
         internal IEnumerable<DawgNode> GetNodes()
         {
             yield return _starting;
-            foreach (var node in _nodes)
+            foreach (var node in _hashtable)
                 yield return node;
             yield return _ending;
         }

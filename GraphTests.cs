@@ -20,7 +20,7 @@ namespace OnlineDAWG
         /// </summary>
         public void Verify()
         {
-            foreach (var grp in _nodes.GroupBy(n => n.Hash))
+            foreach (var grp in _hashtable.GroupBy(n => n.Hash))
             {
                 var arr = grp.ToArray();
                 for (int i = 0; i < arr.Length - 1; i++)
@@ -30,7 +30,7 @@ namespace OnlineDAWG
                         else if (arr[i].MatchesSame(arr[j]))
                             throw new Exception("Graph is not optimal!");
             }
-            if (_nodes.Contains(_starting))
+            if (_hashtable.Contains(_starting))
                 throw new Exception("Starting node is in hash table!");
             verifyNode(_starting);
         }
@@ -49,12 +49,12 @@ namespace OnlineDAWG
             {
                 if (node != _ending)
                     throw new Exception("Blank accepting node != _ending");
-                if (_nodes.GetValuesExact(node.Hash).Contains(node))
+                if (_hashtable.GetValuesExact(node.Hash).Contains(node))
                     throw new Exception("Blank terminating node is in hash table!");
             }
             else
             {
-                if (node != _starting && (!_nodes.GetValuesExact(node.Hash).Contains(node)))
+                if (node != _starting && (!_hashtable.GetValuesExact(node.Hash).Contains(node)))
                     throw new Exception("Normal node not in hash table!");
                 foreach (var e in node.Edges)
                     verifyNode(e.Node);
