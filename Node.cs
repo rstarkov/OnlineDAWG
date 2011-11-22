@@ -77,7 +77,7 @@ namespace OnlineDAWG
                     had = true;
                     if (this.Edges[t].Char == c)
                     {
-                        if (accepting || this.Edges[t].Accepting != other.Edges[o].Accepting)
+                        if ((accepting || this.Edges[t].Accepting) != other.Edges[o].Accepting)
                             return false;
                         if (!this.Edges[t].Node.MatchesSameWithAdd(add, from + 1, other.Edges[o].Node))
                             return false;

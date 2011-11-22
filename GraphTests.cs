@@ -62,6 +62,12 @@ namespace OnlineDAWG
             DawgGraph g;
 
             g = new DawgGraph();
+            g.Add("far"); g.Verify();
+            g.Add("xar"); g.Verify();
+            g.Add("fa"); g.Verify(); assert(g.NodeCount == 5); assert(g.EdgeCount == 5);
+            g.Add("xa"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 4);
+
+            g = new DawgGraph();
             g.Add("acde"); g.Verify();
             g.Add("acf"); g.Verify();
             g.Add("bcde"); g.Verify(); assert(g.NodeCount == 7); assert(g.EdgeCount == 8);
