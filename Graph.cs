@@ -18,13 +18,13 @@ namespace OnlineDAWG
     public partial class DawgGraph
     {
         private DawgNode _starting = new DawgNode(0);
-        private DawgNode _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
+        private DawgNode _ending = null;
         private DawgHashTable _nodes = new DawgHashTable();
 
         /// <summary>Gets the number of distinct "words" (values added with <see cref="Add"/>) that this graph accepts.</summary>
         public int WordCount { get; private set; }
         /// <summary>Gets the number of nodes in the graph.</summary>
-        public int NodeCount { get { return _nodes.Count + 2; } }
+        public int NodeCount { get { return _nodes.Count + (_ending == null ? 1 : 2); } }
         /// <summary>Gets the number of edges in the graph.</summary>
         public int EdgeCount { get; private set; }
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
@@ -49,7 +49,7 @@ namespace OnlineDAWG
                 }
 
                 if (node == _ending)
-                    _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
+                    _ending = null;
 
                 if (index - 1 == value.Length)
                 {
@@ -174,7 +174,11 @@ namespace OnlineDAWG
         private DawgNode addNew(string value, int from)
         {
             if (from == value.Length)
+            {
+                if (_ending == null)
+                    _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
                 return _ending;
+            }
             var hash = FnvHash(value, from);
             var n = _nodes.GetFirstInBucket(hash);
             while (n != null)
@@ -232,8 +236,11 @@ namespace OnlineDAWG
             // Merge sort them by decreasing RefCount
             var first = mergeSort(dummy.HashNext, NodeCount - 1);
             // Prepend the ending node, because all links to it are always accepting (-0 = 0) and its RefCount is usually large.
-            _ending.HashNext = first;
-            first = _ending;
+            if (_ending != null)
+            {
+                _ending.HashNext = first;
+                first = _ending;
+            }
             // Assign integer id's and establish char frequencies
             curnode = first;
             var chars = new Dictionary<char, int>();
@@ -395,7 +402,8 @@ namespace OnlineDAWG
             yield return _starting;
             foreach (var node in _nodes)
                 yield return node;
-            yield return _ending;
+            if (_ending != null)
+                yield return _ending;
         }
     }
 }
