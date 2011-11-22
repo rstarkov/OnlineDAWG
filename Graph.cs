@@ -20,6 +20,7 @@ namespace OnlineDAWG
         private DawgNode _starting = new DawgNode(0);
         private DawgNode _ending = null;
         private DawgHashTable _nodes = new DawgHashTable();
+        private bool _containsEmpty = false;
 
         /// <summary>Gets the number of distinct "words" (values added with <see cref="Add"/>) that this graph accepts.</summary>
         public int WordCount { get; private set; }
@@ -28,7 +29,7 @@ namespace OnlineDAWG
         /// <summary>Gets the number of edges in the graph.</summary>
         public int EdgeCount { get; private set; }
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
-        public long MemoryUsage { get { return (8 * IntPtr.Size + 2 * 4) * (long) NodeCount + (2 * IntPtr.Size) * (long) EdgeCount + _nodes.MemoryUsage; } }
+        public long MemoryUsage { get { return (7 * IntPtr.Size + 2 * 4) * (long) NodeCount + (2 * IntPtr.Size) * (long) EdgeCount + _nodes.MemoryUsage; } }
 
         /// <summary>
         /// Adds the specified value to the DAWG. This method *will* result in corruption if this value
@@ -36,9 +37,16 @@ namespace OnlineDAWG
         /// </summary>
         public void Add(string value)
         {
+            if (value.Length == 0)
+            {
+                _containsEmpty = true;
+                WordCount++;
+                return;
+            }
+
             var node = _starting;
             uint nexthash = 0;
-            for (int index = 1; index <= value.Length + 1; index++)
+            for (int restFrom = 1; restFrom <= value.Length + 1; restFrom++)
             {
                 if (node != _starting)
                 {
@@ -51,13 +59,7 @@ namespace OnlineDAWG
                 if (node == _ending)
                     _ending = null;
 
-                if (index - 1 == value.Length)
-                {
-                    node.Accepting = true;
-                    break;
-                }
-
-                char c = value[index - 1];
+                char c = value[restFrom - 1];
 
                 // Find the outgoing edge index, or insert it if not there yet
                 int n = -1;
@@ -72,18 +74,26 @@ namespace OnlineDAWG
                     else // equal
                         break;
                 }
+                // If the edge wasn't there, special-case the chain-insertion
                 if (nmin > nmax)
                 {
                     n = nmin;
                     node.InsertBlankAt(n);
                     node.Edges[n].Char = c;
-                    node.Edges[n].Node = addNew(value, index);
+                    node.Edges[n].Node = addNew(value, restFrom);
                     node.Edges[n].Node.RefCount++;
+                    node.Edges[n].Accepting = restFrom == value.Length;
                     EdgeCount++;
                     break;
                 }
-
-                nexthash = FnvHash(value, index);
+                // If the edge was there and this is the last letter, just mark it accepting and be done
+                if (restFrom == value.Length)
+                {
+                    node.Edges[n].Accepting = true;
+                    break;
+                }
+                // If we already have a node exactly like the (next node + new suffix), just relink to that
+                nexthash = FnvHash(value, restFrom);
                 bool done = false;
                 var wantedhash = node.Edges[n].Node.Hash ^ nexthash;
                 var candidate = _nodes.GetFirstInBucket(wantedhash);
@@ -91,7 +101,7 @@ namespace OnlineDAWG
                 {
                     if (candidate.Hash == wantedhash)
                     {
-                        if (node.Edges[n].Node.MatchesSameWithAdd(value, index, candidate))
+                        if (node.Edges[n].Node.MatchesSameWithAdd(value, restFrom, candidate))
                         {
                             var old = node.Edges[n].Node;
                             node.Edges[n].Node = candidate;
@@ -105,13 +115,14 @@ namespace OnlineDAWG
                 }
                 if (done)
                     break;
-
+                // If anything else uses the next node, we must make a copy of it, relink to the copy, and modify _that_ instead
                 if (node.Edges[n].Node.RefCount > 1)
                 {
                     var old = node.Edges[n].Node;
-                    var newn = node.Edges[n].Node = new DawgNode(old.Edges.Length) { Hash = old.Hash, Accepting = old.Accepting };
+                    var newn = node.Edges[n].Node = new DawgNode(old.Edges.Length) { Hash = old.Hash };
                     for (int i = 0; i < old.Edges.Length; i++)
                     {
+                        newn.Edges[i].Accepting = old.Edges[i].Accepting;
                         newn.Edges[i].Char = old.Edges[i].Char;
                         newn.Edges[i].Node = old.Edges[i].Node;
                         newn.Edges[i].Node.RefCount++;
@@ -133,6 +144,7 @@ namespace OnlineDAWG
         public bool Contains(string value)
         {
             var node = _starting;
+            bool accepting = _containsEmpty;
             for (int index = 0; index < value.Length; index++)
             {
                 char c = value[index];
@@ -151,9 +163,10 @@ namespace OnlineDAWG
                 }
                 if (nmin > nmax)
                     return false;
+                accepting = node.Edges[n].Accepting;
                 node = node.Edges[n].Node;
             }
-            return node.Accepting;
+            return accepting;
         }
 
         private void dereference(DawgNode node)
@@ -176,7 +189,7 @@ namespace OnlineDAWG
             if (from == value.Length)
             {
                 if (_ending == null)
-                    _ending = new DawgNode(0) { Accepting = true, Hash = 2166136261 };
+                    _ending = new DawgNode(0);
                 return _ending;
             }
             var hash = FnvHash(value, from);
@@ -189,6 +202,7 @@ namespace OnlineDAWG
             }
 
             var node = new DawgNode(1) { Hash = hash };
+            node.Edges[0].Accepting = from == value.Length - 1;
             node.Edges[0].Char = value[from];
             node.Edges[0].Node = addNew(value, from + 1);
             node.Edges[0].Node.RefCount++;
@@ -228,19 +242,11 @@ namespace OnlineDAWG
             var curnode = dummy;
             foreach (var n in GetNodes())
             {
-                if (n == _ending) // the ending node is handled separately
-                    continue;
                 curnode.HashNext = n;
                 curnode = n;
             }
             // Merge sort them by decreasing RefCount
             var first = mergeSort(dummy.HashNext, NodeCount - 1);
-            // Prepend the ending node, because all links to it are always accepting (-0 = 0) and its RefCount is usually large.
-            if (_ending != null)
-            {
-                _ending.HashNext = first;
-                first = _ending;
-            }
             // Assign integer id's and establish char frequencies
             curnode = first;
             var chars = new Dictionary<char, int>();
@@ -266,17 +272,16 @@ namespace OnlineDAWG
             curnode = first;
             while (curnode != null)
             {
-                optimWrite(stream, (uint) (curnode.Edges.Length * 2 + (curnode.Accepting ? 1 : 0)));
+                optimWrite(stream, (uint) curnode.Edges.Length);
                 foreach (var e in curnode.Edges)
                 {
                     int f = 0;
                     for (; f < charset.Length; f++)
                         if (charset[f] == e.Char)
                             break;
-                    optimWrite(stream, (uint) f);
-                }
-                foreach (var e in curnode.Edges)
+                    optimWrite(stream, (uint) ((f << 1) + (e.Accepting ? 1 : 0)));
                     optimWrite(stream, e.Node.Hash);
+                }
                 curnode = curnode.HashNext;
             }
         }
@@ -345,13 +350,14 @@ namespace OnlineDAWG
             result._starting = nodes[optimRead(stream)];
             for (int n = 0; n < nodes.Length; n++)
             {
-                uint acclen = optimRead(stream);
-                nodes[n].Edges = new DawgEdge[acclen >> 1];
-                nodes[n].Accepting = (acclen & 1) != 0;
+                nodes[n].Edges = new DawgEdge[optimRead(stream)];
                 for (int i = 0; i < nodes[n].Edges.Length; i++)
-                    nodes[n].Edges[i].Char = charset[optimRead(stream)];
-                for (int i = 0; i < nodes[n].Edges.Length; i++)
+                {
+                    var characc = optimRead(stream);
+                    nodes[n].Edges[i].Accepting = (characc & 1) != 0;
+                    nodes[n].Edges[i].Char = charset[characc >> 1];
                     nodes[n].Edges[i].Node = nodes[optimRead(stream)];
+                }
             }
             return result;
         }

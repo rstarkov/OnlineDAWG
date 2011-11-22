@@ -17,12 +17,12 @@ namespace OnlineDAWG
     {
         public DawgNode Node;
         public char Char;
+        public bool Accepting;
     }
 
     class DawgNode
     {
         public DawgEdge[] Edges;
-        public bool Accepting;
         public int RefCount;
         public uint Hash = 0;
         public DawgNode HashNext;
@@ -45,29 +45,35 @@ namespace OnlineDAWG
             {
                 if (node.Edges.Length != 1) return false;
                 if (node.Edges[0].Char != value[from]) return false;
+                if (node.Edges[0].Accepting != (from == value.Length - 1)) return false;
                 node = node.Edges[0].Node;
             }
-            return node.Accepting && node.IsBlank();
+            return node.IsBlank();
         }
 
         public bool MatchesSame(DawgNode other)
         {
-            if (Accepting != other.Accepting)
+            if (this.Edges.Length != other.Edges.Length)
                 return false;
-            return matchesHelper(other);
+            for (int i = 0; i < Edges.Length; i++)
+                if (this.Edges[i].Char != other.Edges[i].Char || this.Edges[i].Accepting != other.Edges[i].Accepting)
+                    return false;
+            for (int i = 0; i < Edges.Length; i++)
+                if (!this.Edges[i].Node.MatchesSame(other.Edges[i].Node))
+                    return false;
+            return true;
         }
 
         public bool MatchesSameWithAdd(string add, int from, DawgNode other)
         {
-            if ((Accepting || from == add.Length) != other.Accepting)
-                return false;
             if (from == add.Length)
-                return matchesHelper(other);
+                return MatchesSame(other);
             if (this.Edges.Length < other.Edges.Length - 1 || this.Edges.Length > other.Edges.Length)
                 return false;
 
             // Shallow test to make sure the characters match
             char c = add[from];
+            bool accepting = from == add.Length - 1;
             bool had = false;
             int t, o;
             for (t = o = 0; t < this.Edges.Length && o < other.Edges.Length; t++, o++)
@@ -75,15 +81,26 @@ namespace OnlineDAWG
                 if (other.Edges[o].Char == c)
                 {
                     had = true;
-                    if (this.Edges[t].Char != c)
+                    if (this.Edges[t].Char == c)
+                    {
+                        if (accepting || this.Edges[t].Accepting != other.Edges[o].Accepting)
+                            return false;
+                    }
+                    else
+                    {
+                        if (accepting != other.Edges[o].Accepting)
+                            return false;
                         t--;
+                    }
                 }
                 else if (this.Edges[t].Char == c)
                     return false;
                 else if (this.Edges[t].Char != other.Edges[o].Char)
                     return false;
+                else if (this.Edges[t].Accepting != other.Edges[o].Accepting)
+                    return false;
             }
-            if (!had && (t != this.Edges.Length || o != other.Edges.Length - 1 || c != other.Edges[o].Char))
+            if (!had && (t != this.Edges.Length || o != other.Edges.Length - 1 || c != other.Edges[o].Char || accepting != other.Edges[o].Accepting))
                 return false;
 
             // Deep test to ensure that the nodes match
@@ -105,27 +122,13 @@ namespace OnlineDAWG
                         t--;
                     }
                 }
-                else if (this.Edges[t].Char == other.Edges[o].Char)
-                    if (!this.Edges[t].Node.MatchesSame(other.Edges[o].Node))
-                        return false;
+                else if (!this.Edges[t].Node.MatchesSame(other.Edges[o].Node))
+                    return false;
             }
             if (!had)
                 if (!other.Edges[o].Node.MatchesOnly(add, from + 1))
                     return false;
 
-            return true;
-        }
-
-        private bool matchesHelper(DawgNode other)
-        {
-            if (this.Edges.Length != other.Edges.Length)
-                return false;
-            for (int i = 0; i < Edges.Length; i++)
-                if (this.Edges[i].Char != other.Edges[i].Char)
-                    return false;
-            for (int i = 0; i < Edges.Length; i++)
-                if (!this.Edges[i].Node.MatchesSame(other.Edges[i].Node))
-                    return false;
             return true;
         }
 
@@ -141,11 +144,13 @@ namespace OnlineDAWG
 
         private IEnumerable<string> suffixes(string prefix)
         {
-            if (Accepting)
-                yield return prefix;
             for (int i = 0; i < Edges.Length; i++)
+            {
+                if (Edges[i].Accepting)
+                    yield return prefix + Edges[i].Char;
                 foreach (var suf in Edges[i].Node.suffixes(prefix + Edges[i].Char))
                     yield return suf;
+            }
         }
 
         public void InsertBlankAt(int pos)
