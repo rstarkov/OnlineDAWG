@@ -41,9 +41,9 @@ namespace OnlineDAWG
         {
             if (node == null)
                 throw new Exception("Null node!");
-            if (node != _starting && !node.IsBlank() && node.Hash != node.Suffixes().Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
+            if (node != _starting && (node.Edges.Length != 0) && node.Hash != node.Suffixes().Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
                 throw new Exception("Wrong node hash");
-            else if (node.IsBlank())
+            else if (node.Edges.Length == 0)
             {
                 if (node != _ending)
                     throw new Exception("Blank accepting node != _ending");

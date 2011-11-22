@@ -33,11 +33,6 @@ namespace OnlineDAWG
             Edges = (blanks <= 0) ? _edgesEmpty : new DawgEdge[blanks];
         }
 
-        public bool IsBlank()
-        {
-            return Edges.Length == 0;
-        }
-
         public bool MatchesOnly(string value, int from)
         {
             var node = this;
@@ -48,7 +43,7 @@ namespace OnlineDAWG
                 if (node.Edges[0].Accepting != (from == value.Length - 1)) return false;
                 node = node.Edges[0].Node;
             }
-            return node.IsBlank();
+            return node.Edges.Length == 0;
         }
 
         public bool MatchesSame(DawgNode other)
@@ -71,7 +66,6 @@ namespace OnlineDAWG
             if (this.Edges.Length < other.Edges.Length - 1 || this.Edges.Length > other.Edges.Length)
                 return false;
 
-            // Shallow test to make sure the characters match
             char c = add[from];
             bool accepting = from == add.Length - 1;
             bool had = false;
@@ -85,10 +79,14 @@ namespace OnlineDAWG
                     {
                         if (accepting || this.Edges[t].Accepting != other.Edges[o].Accepting)
                             return false;
+                        if (!this.Edges[t].Node.MatchesSameWithAdd(add, from + 1, other.Edges[o].Node))
+                            return false;
                     }
                     else
                     {
                         if (accepting != other.Edges[o].Accepting)
+                            return false;
+                        if (!other.Edges[o].Node.MatchesOnly(add, from + 1))
                             return false;
                         t--;
                     }
@@ -99,35 +97,16 @@ namespace OnlineDAWG
                     return false;
                 else if (this.Edges[t].Accepting != other.Edges[o].Accepting)
                     return false;
-            }
-            if (!had && (t != this.Edges.Length || o != other.Edges.Length - 1 || c != other.Edges[o].Char || accepting != other.Edges[o].Accepting))
-                return false;
-
-            // Deep test to ensure that the nodes match
-            had = false;
-            for (t = o = 0; t < this.Edges.Length && o < other.Edges.Length; t++, o++)
-            {
-                if (other.Edges[o].Char == c)
-                {
-                    had = true;
-                    if (this.Edges[t].Char == c)
-                    {
-                        if (!this.Edges[t].Node.MatchesSameWithAdd(add, from + 1, other.Edges[o].Node))
-                            return false;
-                    }
-                    else
-                    {
-                        if (!other.Edges[o].Node.MatchesOnly(add, from + 1))
-                            return false;
-                        t--;
-                    }
-                }
                 else if (!this.Edges[t].Node.MatchesSame(other.Edges[o].Node))
                     return false;
             }
             if (!had)
+            {
+                if (t != this.Edges.Length || o != other.Edges.Length - 1 || c != other.Edges[o].Char || accepting != other.Edges[o].Accepting)
+                    return false;
                 if (!other.Edges[o].Node.MatchesOnly(add, from + 1))
                     return false;
+            }
 
             return true;
         }
@@ -153,7 +132,7 @@ namespace OnlineDAWG
             }
         }
 
-        public void InsertBlankAt(int pos)
+        public void InsertEdgeAt(int pos)
         {
             var newEdges = new DawgEdge[Edges.Length + 1];
             Array.Copy(Edges, newEdges, pos);

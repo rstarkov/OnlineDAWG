@@ -50,7 +50,7 @@ namespace OnlineDAWG
             {
                 if (node != _starting)
                 {
-                    if (!node.IsBlank())
+                    if (node.Edges.Length != 0)
                         _nodes.Remove(node);
                     node.Hash ^= nexthash;
                     _nodes.Add(node);
@@ -78,7 +78,7 @@ namespace OnlineDAWG
                 if (nmin > nmax)
                 {
                     n = nmin;
-                    node.InsertBlankAt(n);
+                    node.InsertEdgeAt(n);
                     node.Edges[n].Char = c;
                     node.Edges[n].Node = addNew(value, restFrom);
                     node.Edges[n].Node.RefCount++;
@@ -176,7 +176,7 @@ namespace OnlineDAWG
                 throw new Exception("836");
             if (node.RefCount == 0)
             {
-                if (!node.IsBlank())
+                if (node.Edges.Length != 0)
                     _nodes.Remove(node);
                 EdgeCount -= node.Edges.Length;
                 for (int i = 0; i < node.Edges.Length; i++)
