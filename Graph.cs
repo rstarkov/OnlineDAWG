@@ -266,6 +266,7 @@ namespace OnlineDAWG
             Util.OptimWrite(stream, (uint) charset.Length);
             foreach (var c in charset)
                 Util.OptimWrite(stream, c);
+            Util.OptimWrite(stream, (uint) EdgeCount);
             Util.OptimWrite(stream, (uint) NodeCount);
             Util.OptimWrite(stream, (uint) WordCount);
             stream.WriteByte((byte) (_containsEmpty ? 1 : 0));
@@ -346,6 +347,7 @@ namespace OnlineDAWG
             for (int i = 0; i < charset.Length; i++)
                 charset[i] = (char) Util.OptimRead(stream);
 
+            result.EdgeCount = (int) Util.OptimRead(stream);
             var nodes = new DawgNode[Util.OptimRead(stream)];
             result.WordCount = (int) Util.OptimRead(stream);
             result._containsEmpty = stream.ReadByte() != 0;

@@ -38,31 +38,27 @@ namespace OnlineDAWG
             for (int i = 0; i < charset.Length; i++)
                 charset[i] = (char) Util.OptimRead(stream);
 
+            result._edges = new DawgEdgeReadonly[(int) Util.OptimRead(stream)];
             result.NodeCount = (int) Util.OptimRead(stream);
             result.WordCount = (int) Util.OptimRead(stream);
             result._containsEmpty = stream.ReadByte() != 0;
             var nodeFirstEdgeIndex = new int[result.NodeCount];
             result._startingIndex = (int) Util.OptimRead(stream);
-            var edges = new ChunkyList<DawgEdgeReadonly>(reuseCapacity: 0);
+            int e = 0;
             for (int n = 0; n < nodeFirstEdgeIndex.Length; n++)
             {
                 var edgesCount = (short) Util.OptimRead(stream);
-                nodeFirstEdgeIndex[n] = edgesCount == 0 ? -1 : edges.Count;
+                nodeFirstEdgeIndex[n] = edgesCount == 0 ? -1 : e;
                 for (int i = 0; i < edgesCount; i++)
                 {
                     var characc = Util.OptimRead(stream);
-                    var edge = new DawgEdgeReadonly
-                    {
-                        Accepting = (characc & 1) != 0,
-                        Char = charset[characc >> 1],
-                        EdgesIndex = (int) Util.OptimRead(stream), // initially this is the node index, because the edge index is unknown at this time
-                        Last = i == edgesCount - 1
-                    };
-                    edges.Add(edge);
+                    result._edges[e].Accepting = (characc & 1) != 0;
+                    result._edges[e].Char = charset[characc >> 1];
+                    result._edges[e].EdgesIndex = (int) Util.OptimRead(stream); // initially this is the node index, because the edge index is unknown at this time
+                    result._edges[e].Last = i == edgesCount - 1;
+                    e++;
                 }
             }
-            result._edges = new DawgEdgeReadonly[edges.Count];
-            edges.CopyTo(result._edges, 0);
             // Now that the first edge index is known for every node, patch them into the edges array
             result._startingIndex = nodeFirstEdgeIndex[result._startingIndex];
             for (int i = 0; i < result._edges.Length; i++)
