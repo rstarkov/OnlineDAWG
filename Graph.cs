@@ -263,24 +263,26 @@ namespace OnlineDAWG
 
             // Write out header
             stream.Write(Encoding.UTF8.GetBytes("DAWG.1"), 0, 6);
-            optimWrite(stream, (uint) charset.Length);
+            Util.OptimWrite(stream, (uint) charset.Length);
             foreach (var c in charset)
-                optimWrite(stream, c);
-            optimWrite(stream, (uint) NodeCount);
-            optimWrite(stream, _starting.Hash);
+                Util.OptimWrite(stream, c);
+            Util.OptimWrite(stream, (uint) NodeCount);
+            Util.OptimWrite(stream, (uint) WordCount);
+            stream.WriteByte((byte) (_containsEmpty ? 1 : 0));
+            Util.OptimWrite(stream, _starting.Hash);
             // Write out nodes
             curnode = first;
             while (curnode != null)
             {
-                optimWrite(stream, (uint) curnode.Edges.Length);
+                Util.OptimWrite(stream, (uint) curnode.Edges.Length);
                 foreach (var e in curnode.Edges)
                 {
                     int f = 0;
                     for (; f < charset.Length; f++)
                         if (charset[f] == e.Char)
                             break;
-                    optimWrite(stream, (uint) ((f << 1) + (e.Accepting ? 1 : 0)));
-                    optimWrite(stream, e.Node.Hash);
+                    Util.OptimWrite(stream, (uint) ((f << 1) + (e.Accepting ? 1 : 0)));
+                    Util.OptimWrite(stream, e.Node.Hash);
                 }
                 curnode = curnode.HashNext;
             }
@@ -335,72 +337,42 @@ namespace OnlineDAWG
         public static DawgGraph Load(Stream stream)
         {
             var buf = new byte[64];
-            fillBuffer(stream, buf, 0, 6);
+            Util.FillBuffer(stream, buf, 0, 6);
             if (Encoding.UTF8.GetString(buf, 0, 6) != "DAWG.1")
                 throw new InvalidDataException();
             var result = new DawgGraph();
 
-            var charset = new char[optimRead(stream)];
+            var charset = new char[Util.OptimRead(stream)];
             for (int i = 0; i < charset.Length; i++)
-                charset[i] = (char) optimRead(stream);
+                charset[i] = (char) Util.OptimRead(stream);
 
-            var nodes = new DawgNode[optimRead(stream)];
+            var nodes = new DawgNode[Util.OptimRead(stream)];
+            result.WordCount = (int) Util.OptimRead(stream);
+            result._containsEmpty = stream.ReadByte() != 0;
             for (int n = 0; n < nodes.Length; n++)
                 nodes[n] = new DawgNode(0);
-            result._starting = nodes[optimRead(stream)];
+            result._starting = nodes[Util.OptimRead(stream)];
             for (int n = 0; n < nodes.Length; n++)
             {
-                nodes[n].Edges = new DawgEdge[optimRead(stream)];
+                nodes[n].Edges = new DawgEdge[Util.OptimRead(stream)];
                 for (int i = 0; i < nodes[n].Edges.Length; i++)
                 {
-                    var characc = optimRead(stream);
+                    var characc = Util.OptimRead(stream);
                     nodes[n].Edges[i].Accepting = (characc & 1) != 0;
                     nodes[n].Edges[i].Char = charset[characc >> 1];
-                    nodes[n].Edges[i].Node = nodes[optimRead(stream)];
+                    nodes[n].Edges[i].Node = nodes[Util.OptimRead(stream)];
                 }
             }
             return result;
         }
 
-        private static int fillBuffer(Stream stream, byte[] buffer, int offset, int length)
+        /// <summary>
+        /// Must be called to make a <see cref="Save"/>d or <see cref="Load"/>ed graph writable again.
+        /// Currently unimplemented.
+        /// </summary>
+        public void RebuildHashes()
         {
-            int totalRead = 0;
-            while (length > 0)
-            {
-                var read = stream.Read(buffer, offset, length);
-                if (read == 0)
-                    return totalRead;
-                offset += read;
-                length -= read;
-                totalRead += read;
-            }
-            return totalRead;
-        }
-
-        private static void optimWrite(Stream stream, uint val)
-        {
-            while (val >= 128)
-            {
-                stream.WriteByte((byte) (val | 128));
-                val >>= 7;
-            }
-            stream.WriteByte((byte) val);
-        }
-
-        private static uint optimRead(Stream stream)
-        {
-            byte b = 255;
-            int shifts = 0;
-            uint res = 0;
-            while (b > 127)
-            {
-                int read = stream.ReadByte();
-                if (read < 0) throw new InvalidOperationException("Unexpected end of stream (#25753)");
-                b = (byte) read;
-                res = res | ((uint) (b & 127) << shifts);
-                shifts += 7;
-            }
-            return res;
+            throw new NotImplementedException();
         }
 
         internal IEnumerable<DawgNode> GetNodes()
