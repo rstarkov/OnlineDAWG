@@ -37,29 +37,30 @@ namespace OnlineDAWG
         /// </summary>
         public void Add(string value)
         {
+            WordCount++;
+
             if (value.Length == 0)
             {
                 _containsEmpty = true;
-                WordCount++;
                 return;
             }
 
             var node = _starting;
-            uint nexthash = 0;
-            for (int restFrom = 1; restFrom <= value.Length + 1; restFrom++)
+            uint nextHash = 0;
+            for (int from = 0; from < value.Length; from++)
             {
                 if (node != _starting)
                 {
                     if (node.Edges.Length != 0)
                         _nodes.Remove(node);
-                    node.Hash ^= nexthash;
+                    node.Hash ^= nextHash;
                     _nodes.Add(node);
                 }
 
                 if (node == _ending)
                     _ending = null;
 
-                char c = value[restFrom - 1];
+                char c = value[from];
 
                 // Find the outgoing edge index, or insert it if not there yet
                 int n = -1;
@@ -79,42 +80,27 @@ namespace OnlineDAWG
                 {
                     n = nmin;
                     node.InsertEdgeAt(n);
-                    node.Edges[n].Char = c;
-                    node.Edges[n].Node = addNew(value, restFrom);
-                    node.Edges[n].Node.RefCount++;
-                    node.Edges[n].Accepting = restFrom == value.Length;
-                    EdgeCount++;
-                    break;
+                    addNewTo(node, n, value, from);
+                    return;
                 }
                 // If the edge was there and this is the last letter, just mark it accepting and be done
-                if (restFrom == value.Length)
+                if (from == value.Length - 1)
                 {
                     node.Edges[n].Accepting = true;
-                    break;
+                    return;
                 }
                 // If we already have a node exactly like the (next node + new suffix), just relink to that
-                nexthash = FnvHash(value, restFrom);
-                bool done = false;
-                var wantedhash = node.Edges[n].Node.Hash ^ nexthash;
-                var candidate = _nodes.GetFirstInBucket(wantedhash);
-                while (candidate != null)
-                {
-                    if (candidate.Hash == wantedhash)
+                nextHash = FnvHash(value, from + 1);
+                var wantedHash = node.Edges[n].Node.Hash ^ nextHash;
+                for (var candidate = _nodes.GetFirstInBucket(wantedHash); candidate != null; candidate = candidate.HashNext)
+                    if (candidate.Hash == wantedHash && node.Edges[n].Node.MatchesSameWithAdd(value, from + 1, candidate))
                     {
-                        if (node.Edges[n].Node.MatchesSameWithAdd(value, restFrom, candidate))
-                        {
-                            var old = node.Edges[n].Node;
-                            node.Edges[n].Node = candidate;
-                            node.Edges[n].Node.RefCount++;
-                            dereference(old);
-                            done = true;
-                            break;
-                        }
+                        var old = node.Edges[n].Node;
+                        node.Edges[n].Node = candidate;
+                        node.Edges[n].Node.RefCount++;
+                        dereference(old);
+                        return;
                     }
-                    candidate = candidate.HashNext;
-                }
-                if (done)
-                    break;
                 // If anything else uses the next node, we must make a copy of it, relink to the copy, and modify _that_ instead
                 if (node.Edges[n].Node.RefCount > 1)
                 {
@@ -134,8 +120,6 @@ namespace OnlineDAWG
 
                 node = node.Edges[n].Node;
             }
-
-            WordCount++;
         }
 
         /// <summary>
@@ -184,31 +168,47 @@ namespace OnlineDAWG
             }
         }
 
-        private DawgNode addNew(string value, int from)
+        private void addNewTo(DawgNode node, int edge, string value, int from)
         {
-            if (from == value.Length)
+            while (true)
             {
-                if (_ending == null)
-                    _ending = new DawgNode(0);
-                return _ending;
-            }
-            var hash = FnvHash(value, from);
-            var n = _nodes.GetFirstInBucket(hash);
-            while (n != null)
-            {
-                if (n.Hash == hash && n.MatchesOnly(value, from))
-                    return n;
-                n = n.HashNext;
-            }
+                // The edge has just been created; must initialize every field
+                EdgeCount++;
+                node.Edges[edge].Char = value[from];
+                node.Edges[edge].Accepting = from == value.Length - 1;
+                if (node.Edges[edge].Accepting)
+                {
+                    if (_ending == null)
+                        _ending = new DawgNode(0);
+                    node.Edges[edge].Node = _ending;
+                    node.Edges[edge].Node.RefCount++;
+                    return;
+                }
 
-            var node = new DawgNode(1) { Hash = hash };
-            node.Edges[0].Accepting = from == value.Length - 1;
-            node.Edges[0].Char = value[from];
-            node.Edges[0].Node = addNew(value, from + 1);
-            node.Edges[0].Node.RefCount++;
-            EdgeCount++;
-            _nodes.Add(node);
-            return node;
+                // Now link this edge to the next node
+                from++;
+
+                // See if any existing nodes match just the remaining suffix
+                var hash = FnvHash(value, from);
+                var n = _nodes.GetFirstInBucket(hash);
+                while (n != null)
+                {
+                    if (n.Hash == hash && n.MatchesOnly(value, from))
+                    {
+                        node.Edges[edge].Node = n;
+                        n.RefCount++;
+                        return;
+                    }
+                    n = n.HashNext;
+                }
+
+                // No suitable nodes found. Create a new one with one edge, to be initialized by the next iteration.
+                node.Edges[edge].Node = new DawgNode(1) { Hash = hash };
+                node = node.Edges[edge].Node;
+                edge = 0;
+                node.RefCount++;
+                _nodes.Add(node);
+            }
         }
 
         private static uint FnvHash(string str, int from = 0)
