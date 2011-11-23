@@ -23,9 +23,13 @@ var g = new DawgGraph();
 g.Add("graphs");
 g.Add("are");
 g.Add("cool");
-// ... add another million words ...
+g.Contains("graph"); // true
 g.Save("graph.dawg");
 
 var gr = DawgGraphReadonly.Load("graph.dawg");
 gr.Contains("cool"); // true
 }}}
+
+=== License ===
+
+This library is available to anyone under the [[https://bitbucket.org/rstarkov/onlinedawg/raw/f544c17cb6c3/license-gpl.txt|GPL]]. If you require this library under a different license, please [[Contact|contact the author]]. If you require a specific feature or customization, this can also be arranged.
