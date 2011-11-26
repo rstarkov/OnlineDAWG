@@ -18,49 +18,21 @@ namespace OnlineDAWG
         public DawgNode Node;
         public char Char;
         public bool Accepting;
+        public override string ToString() { return string.Format("char={0}, accept={1}", Char, Accepting); }
     }
 
     class DawgNode
     {
-        public DawgEdge[] Edges;
+        public int EdgesOffset;
+        public short EdgesCount;
         public int RefCount;
         public uint Hash = 0;
         public DawgNode HashNext;
 
-        private static DawgEdge[] _edgesEmpty = new DawgEdge[0];
-        public DawgNode(int blanks)
+        public DawgNode(short edgesCount, int edgesOffset)
         {
-            Edges = (blanks <= 0) ? _edgesEmpty : new DawgEdge[blanks];
-        }
-
-        public override string ToString()
-        {
-            return "Node: " + string.Join("|", Suffixes().Select(s => s == "" ? "<acc>" : s).ToArray());
-        }
-
-        public IEnumerable<string> Suffixes()
-        {
-            return suffixes("");
-        }
-
-        private IEnumerable<string> suffixes(string prefix)
-        {
-            for (int i = 0; i < Edges.Length; i++)
-            {
-                if (Edges[i].Accepting)
-                    yield return prefix + Edges[i].Char;
-                foreach (var suf in Edges[i].Node.suffixes(prefix + Edges[i].Char))
-                    yield return suf;
-            }
-        }
-
-        public void InsertEdgeAt(int pos)
-        {
-            var newEdges = new DawgEdge[Edges.Length + 1];
-            Array.Copy(Edges, newEdges, pos);
-            if (pos < Edges.Length)
-                Array.Copy(Edges, pos, newEdges, pos + 1, Edges.Length - pos);
-            Edges = newEdges;
+            EdgesCount = edgesCount;
+            EdgesOffset = edgesOffset;
         }
     }
 }

@@ -121,7 +121,7 @@ namespace OnlineDAWG
         /// <summary>
         /// Marks the specified index for reuse next time an <see cref="Add"/> is requested. Will cause corruption
         /// if the index is out of range, or is already marked for reuse. To remain efficient, the number of pending
-		/// reuse items should be low, i.e. <see cref="Add"/> should be called more often than this method.
+        /// reuse items should be low, i.e. <see cref="Add"/> should be called more often than this method.
         /// </summary>
         public void Reuse(int index)
         {
@@ -151,6 +151,60 @@ namespace OnlineDAWG
                     return;
                 }
             }
+        }
+    }
+
+    class ChunkyArrayList<T>
+    {
+        internal T[][] _chunks = new T[4][];
+        internal int _chunkSize, _shifts, _mask;
+        private int _next = 0;
+        private int[][] _reuse = new int[64][];
+        private int[] _reuseCount = new int[64];
+
+        public ChunkyArrayList(int chunkSizeExponent = 17, int reuseCapacity = 65536)
+        {
+            _shifts = chunkSizeExponent;
+            _chunkSize = 1 << _shifts;
+            _mask = _chunkSize - 1;
+            for (int i = 0; i < _reuse.Length; i++)
+                _reuse[i] = new int[Math.Max(reuseCapacity, 1)];
+        }
+
+        public int Add(int length)
+        {
+            if (_reuseCount[length] > 0)
+                return _reuse[length][--_reuseCount[length]];
+
+            int li = _next >> _shifts;
+            if (li >= _chunks.Length)
+                Array.Resize(ref _chunks, _chunks.Length * 2);
+            if (_chunks[li] == null)
+                _chunks[li] = new T[_chunkSize];
+
+            int lp = _next & _mask;
+            if (lp + length >= _chunkSize)
+            {
+                lp = _chunkSize - lp;
+                Reuse(lp, _next);
+                _next += lp;
+                li++;
+                if (li >= _chunks.Length)
+                    Array.Resize(ref _chunks, _chunks.Length * 2);
+                if (_chunks[li] == null)
+                    _chunks[li] = new T[_chunkSize];
+            }
+
+            var result = _next;
+            _next += length;
+            return result;
+        }
+
+        public void Reuse(int length, int index)
+        {
+            if (_reuseCount[length] >= _reuse[length].Length)
+                Array.Resize(ref _reuse[length], _reuse[length].Length * 2);
+            _reuse[length][_reuseCount[length]++] = index;
         }
     }
 }

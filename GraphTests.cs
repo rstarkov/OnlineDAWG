@@ -41,9 +41,9 @@ namespace OnlineDAWG
         {
             if (node == null)
                 throw new Exception("Null node!");
-            if (node != _starting && (node.Edges.Length != 0) && node.Hash != node.Suffixes().Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
+            if (node != _starting && (node.EdgesCount != 0) && node.Hash != Suffixes(node).Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
                 throw new Exception("Wrong node hash");
-            else if (node.Edges.Length == 0)
+            else if (node.EdgesCount == 0)
             {
                 if (node != _ending)
                     throw new Exception("Blank accepting node != _ending");
@@ -52,7 +52,7 @@ namespace OnlineDAWG
             {
                 if (node != _starting && (!_nodes.GetValuesExact(node.Hash).Contains(node)))
                     throw new Exception("Normal node not in hash table!");
-                foreach (var e in node.Edges)
+                foreach (var e in EnumEdges(node))
                     verifyNode(e.Node);
             }
         }
@@ -62,9 +62,9 @@ namespace OnlineDAWG
             DawgGraph g;
 
             g = new DawgGraph();
-            g.Add("far"); g.Verify();
-            g.Add("xar"); g.Verify();
-            g.Add("fa"); g.Verify(); assert(g.NodeCount == 5); assert(g.EdgeCount == 5);
+            g.Add("far"); g.Verify(); assert(g.Contains("far"));
+            g.Add("xar"); g.Verify(); assert(g.Contains("far")); assert(g.Contains("xar"));
+            g.Add("fa"); g.Verify(); assert(g.Contains("far")); assert(g.Contains("xar")); assert(g.Contains("fa"));  assert(g.NodeCount == 5); assert(g.EdgeCount == 5);
             g.Add("xa"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 4);
 
             g = new DawgGraph();
@@ -80,7 +80,7 @@ namespace OnlineDAWG
             assert(g.WordCount == 3);
             assert(g.NodeCount == 4);
             assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
+            assert(g.EdgeCount == g.GetNodes().Sum(n => n.EdgesCount));
 
             g = new DawgGraph();
             g.Add("xac"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 3);
@@ -93,7 +93,7 @@ namespace OnlineDAWG
             g.Add("yacd"); g.Verify(); assert(g.NodeCount == 7); assert(g.EdgeCount == 8);
             assert(g.WordCount == 8);
             assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
+            assert(g.EdgeCount == g.GetNodes().Sum(n => n.EdgesCount));
 
             g = new DawgGraph();
             g.Add("xab"); g.Verify();
@@ -104,7 +104,7 @@ namespace OnlineDAWG
             assert(g.WordCount == 5);
             assert(g.NodeCount == 7);
             assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
+            assert(g.EdgeCount == g.GetNodes().Sum(n => n.EdgesCount));
 
             var ms = new MemoryStream();
             g.Save(ms);
