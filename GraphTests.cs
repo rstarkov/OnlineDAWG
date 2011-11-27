@@ -8,6 +8,7 @@
 // warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -29,7 +30,7 @@ namespace OnlineDAWG
                     for (int j = i + 1; j < arr.Length; j++)
                         if (arr[i] == arr[j])
                             throw new Exception("Duplicate nodes");
-                        else if (MatchesSame(arr[i], arr[j]))
+                        else if (matchesSame(arr[i], arr[j]))
                             throw new Exception("Graph is not optimal!");
             }
             if (_hashtable.Contains(_starting))
@@ -45,7 +46,7 @@ namespace OnlineDAWG
                 throw new Exception("Null node!");
             if (GetNodeRefCount(node) < 0)
                 throw new Exception("Ref count negative");
-            if (node != _starting && (GetNodeEdgesCount(node) != 0) && GetNodeHash(node) != Suffixes(node).Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
+            if (node != _starting && (GetNodeEdgesCount(node) != 0) && GetNodeHash(node) != suffixes(node).Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
                 throw new Exception("Wrong node hash");
             else if (GetNodeEdgesCount(node) == 0)
             {
@@ -56,11 +57,30 @@ namespace OnlineDAWG
             {
                 if (node != _starting && (!_hashtable.GetValuesExact(GetNodeHash(node)).Contains(node)))
                     throw new Exception("Normal node not in hash table!");
-                foreach (var e in EnumEdges(node))
+                foreach (var e in getEdges(node))
                     verifyNode(e.Node);
             }
         }
 
+        private IEnumerable<string> suffixes(DawgNodeIndex node)
+        {
+            return suffixes(node, "");
+        }
+
+        private IEnumerable<string> suffixes(DawgNodeIndex node, string prefix)
+        {
+            for (int i = 0; i < GetNodeEdgesCount(node); i++)
+            {
+                if (GetEdgeAccepting(node, i))
+                    yield return prefix + GetEdgeChar(node, i);
+                foreach (var suf in suffixes(GetEdgeNode(node, i), prefix + GetEdgeChar(node, i)))
+                    yield return suf;
+            }
+        }
+
+        /// <summary>
+        /// Performs self-tests of the <see cref="DawgGraph"/> and <see cref="DawgGraphReadonly"/> classes.
+        /// </summary>
         public static void SelfTest()
         {
             DawgGraph g;
@@ -83,8 +103,8 @@ namespace OnlineDAWG
             g.Add("fo"); g.Verify();
             assert(g.WordCount == 3);
             assert(g.NodeCount == 4);
-            assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => g.GetNodeEdgesCount(n)));
+            assert(g.NodeCount == g.getNodes().Count());
+            assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
 
             g = new DawgGraph();
             g.Add("xac"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 3);
@@ -96,8 +116,8 @@ namespace OnlineDAWG
             g.Add("ybef"); g.Verify(); assert(g.NodeCount == 9); assert(g.EdgeCount == 11);
             g.Add("yacd"); g.Verify(); assert(g.NodeCount == 7); assert(g.EdgeCount == 8);
             assert(g.WordCount == 8);
-            assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => g.GetNodeEdgesCount(n)));
+            assert(g.NodeCount == g.getNodes().Count());
+            assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
 
             g = new DawgGraph();
             g.Add("xab"); g.Verify();
@@ -107,8 +127,8 @@ namespace OnlineDAWG
             g.Add("xabc"); g.Verify();
             assert(g.WordCount == 5);
             assert(g.NodeCount == 7);
-            assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => g.GetNodeEdgesCount(n)));
+            assert(g.NodeCount == g.getNodes().Count());
+            assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
 
             var ms = new MemoryStream();
             g.Save(ms);
