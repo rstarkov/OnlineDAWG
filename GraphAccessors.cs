@@ -2,39 +2,86 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 
 namespace OnlineDAWG
 {
     partial class DawgGraph
     {
+        private DawgNodeIndex _cachedEdgeFor;
+        private DawgEdge[] _cachedEdgeChunk;
+        private int _cachedEdgeIndex;
+
         private bool GetEdgeAccepting(DawgNodeIndex node, int index)
         {
-            return _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Accepting;
+            if (node != _cachedEdgeFor)
+            {
+                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                _cachedEdgeFor = node;
+                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
+                _cachedEdgeIndex = offset & _edges._mask;
+            }
+            return _cachedEdgeChunk[_cachedEdgeIndex + index].Accepting;
         }
 
         private char GetEdgeChar(DawgNodeIndex node, int index)
         {
-            return _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Char;
+            if (node != _cachedEdgeFor)
+            {
+                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                _cachedEdgeFor = node;
+                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
+                _cachedEdgeIndex = offset & _edges._mask;
+            }
+            return _cachedEdgeChunk[_cachedEdgeIndex + index].Char;
         }
 
         private DawgNodeIndex GetEdgeNode(DawgNodeIndex node, int index)
         {
-            return _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Node;
+            if (node != _cachedEdgeFor)
+            {
+                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                _cachedEdgeFor = node;
+                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
+                _cachedEdgeIndex = offset & _edges._mask;
+            }
+            return _cachedEdgeChunk[_cachedEdgeIndex + index].Node;
         }
 
         private void SetEdgeAccepting(DawgNodeIndex node, int index, bool value)
         {
-            _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Accepting = value;
+            if (node != _cachedEdgeFor)
+            {
+                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                _cachedEdgeFor = node;
+                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
+                _cachedEdgeIndex = offset & _edges._mask;
+            }
+            _cachedEdgeChunk[_cachedEdgeIndex + index].Accepting = value;
         }
 
         private void SetEdgeChar(DawgNodeIndex node, int index, char value)
         {
-            _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Char = value;
+            if (node != _cachedEdgeFor)
+            {
+                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                _cachedEdgeFor = node;
+                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
+                _cachedEdgeIndex = offset & _edges._mask;
+            }
+            _cachedEdgeChunk[_cachedEdgeIndex + index].Char = value;
         }
 
         private void SetEdgeNode(DawgNodeIndex node, int index, DawgNodeIndex value)
         {
-            _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Node = value;
+            if (node != _cachedEdgeFor)
+            {
+                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                _cachedEdgeFor = node;
+                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
+                _cachedEdgeIndex = offset & _edges._mask;
+            }
+            _cachedEdgeChunk[_cachedEdgeIndex + index].Node = value;
         }
 
         private int GetNodeEdgesOffset(DawgNodeIndex node)
@@ -64,6 +111,7 @@ namespace OnlineDAWG
 
         private void SetNodeEdgesOffset(DawgNodeIndex node, int value)
         {
+            if (_cachedEdgeFor == node) _cachedEdgeFor = DawgNodeIndex.Null;
             _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset = value;
         }
 

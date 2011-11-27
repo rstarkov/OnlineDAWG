@@ -77,9 +77,10 @@ namespace OnlineDAWG
                 while (nmin <= nmax)
                 {
                     n = (nmin + nmax) >> 1;
-                    if (GetEdgeChar(node, n) < c)
+                    char cn = GetEdgeChar(node, n);
+                    if (cn < c)
                         nmin = n + 1;
-                    else if (GetEdgeChar(node, n) > c)
+                    else if (cn > c)
                         nmax = n - 1;
                     else // equal
                         break;
@@ -87,9 +88,8 @@ namespace OnlineDAWG
                 // If the edge wasn't there, special-case the chain-insertion
                 if (nmin > nmax)
                 {
-                    n = nmin;
-                    insertEdgeAt(node, n);
-                    addNewTo(node, n, value, from);
+                    insertEdgeAt(node, nmin);
+                    addNewTo(node, nmin, value, from);
                     return;
                 }
                 // If the edge was there and this is the last letter, just mark it accepting and be done
@@ -113,23 +113,19 @@ namespace OnlineDAWG
                 // If anything else uses the next node, we must make a copy of it, relink to the copy, and modify _that_ instead
                 if (GetNodeRefCount(GetEdgeNode(node, n)) > 1)
                 {
-                    var old = GetEdgeNode(node, n);
-                    var newn = _nodes.Add();
-                    SetNodeEdgesCount(newn, GetNodeEdgesCount(old));
-                    SetNodeEdgesOffset(newn, _edges.Add(GetNodeEdgesCount(old)));
-                    SetNodeHash(newn, GetNodeHash(old));
-                    SetEdgeNode(node, n, newn);
-#warning Optimize this copy
-                    for (int i = 0; i < GetNodeEdgesCount(old); i++)
-                    {
-                        SetEdgeAccepting(newn, i, GetEdgeAccepting(old, i));
-                        SetEdgeChar(newn, i, GetEdgeChar(old, i));
-                        SetEdgeNode(newn, i, GetEdgeNode(old, i));
-                        IncNodeRefCount(GetEdgeNode(newn, i));
-                    }
-                    EdgeCount += GetNodeEdgesCount(old);
-                    dereference(old);
-                    IncNodeRefCount(newn);
+                    var oldNode = GetEdgeNode(node, n);
+                    var newNode = _nodes.Add();
+                    var edgesCount = GetNodeEdgesCount(oldNode);
+                    SetNodeEdgesCount(newNode, edgesCount);
+                    SetNodeEdgesOffset(newNode, _edges.Add(edgesCount));
+                    SetNodeHash(newNode, GetNodeHash(oldNode));
+                    SetEdgeNode(node, n, newNode);
+                    edgesCopy(GetNodeEdgesOffset(oldNode), GetNodeEdgesOffset(newNode), edgesCount);
+                    for (int i = 0; i < edgesCount; i++)
+                        IncNodeRefCount(GetEdgeNode(newNode, i));
+                    EdgeCount += edgesCount;
+                    dereference(oldNode);
+                    IncNodeRefCount(newNode);
                 }
 
                 node = GetEdgeNode(node, n);
@@ -152,9 +148,10 @@ namespace OnlineDAWG
                 while (nmin <= nmax)
                 {
                     n = (nmin + nmax) >> 1;
-                    if (GetEdgeChar(node, n) < c)
+                    char cn = GetEdgeChar(node, n);
+                    if (cn < c)
                         nmin = n + 1;
-                    else if (GetEdgeChar(node, n) > c)
+                    else if (cn > c)
                         nmax = n - 1;
                     else // equal
                         break;
@@ -169,15 +166,16 @@ namespace OnlineDAWG
 
         private void dereference(DawgNodeIndex node)
         {
-            DecNodeRefCount(node);
-            if (GetNodeRefCount(node) == 0)
+            var newRefCount = DecNodeRefCount(node);
+            if (newRefCount == 0)
             {
-                if (GetNodeEdgesCount(node) != 0)
+                var edgesCount = GetNodeEdgesCount(node);
+                if (edgesCount != 0)
                     _hashtable.Remove(node);
-                EdgeCount -= GetNodeEdgesCount(node);
-                for (int i = 0; i < GetNodeEdgesCount(node); i++)
+                EdgeCount -= edgesCount;
+                for (int i = 0; i < edgesCount; i++)
                     dereference(GetEdgeNode(node, i));
-                _edges.Reuse(GetNodeEdgesCount(node), GetNodeEdgesOffset(node));
+                _edges.Reuse(edgesCount, GetNodeEdgesOffset(node));
                 _nodes.Reuse(node);
             }
         }
@@ -242,13 +240,13 @@ namespace OnlineDAWG
 
         private bool matchesSame(DawgNodeIndex thisNode, DawgNodeIndex otherNode)
         {
-#warning cache edge counts
-            if (GetNodeEdgesCount(thisNode) != GetNodeEdgesCount(otherNode))
+            var thisNodeEdgesCount = GetNodeEdgesCount(thisNode);
+            if (thisNodeEdgesCount != GetNodeEdgesCount(otherNode))
                 return false;
-            for (int i = 0; i < GetNodeEdgesCount(thisNode); i++)
+            for (int i = 0; i < thisNodeEdgesCount; i++)
                 if (GetEdgeChar(thisNode, i) != GetEdgeChar(otherNode, i) || GetEdgeAccepting(thisNode, i) != GetEdgeAccepting(otherNode, i))
                     return false;
-            for (int i = 0; i < GetNodeEdgesCount(thisNode); i++)
+            for (int i = 0; i < thisNodeEdgesCount; i++)
                 if (!matchesSame(GetEdgeNode(thisNode, i), GetEdgeNode(otherNode, i)))
                     return false;
             return true;
@@ -256,16 +254,19 @@ namespace OnlineDAWG
 
         private bool matchesSameWithAdd(DawgNodeIndex thisNode, string add, int from, DawgNodeIndex otherNode)
         {
+            var thisNodeEdgesCount = GetNodeEdgesCount(thisNode);
+            var otherNodeEdgesCount = GetNodeEdgesCount(otherNode);
+
             if (from == add.Length)
                 return matchesSame(thisNode, otherNode);
-            if (GetNodeEdgesCount(thisNode) < GetNodeEdgesCount(otherNode) - 1 || GetNodeEdgesCount(thisNode) > GetNodeEdgesCount(otherNode))
+            if (thisNodeEdgesCount < otherNodeEdgesCount - 1 || thisNodeEdgesCount > otherNodeEdgesCount)
                 return false;
 
             char c = add[from];
             bool accepting = from == add.Length - 1;
             bool had = false;
             int t, o;
-            for (t = o = 0; t < GetNodeEdgesCount(thisNode) && o < GetNodeEdgesCount(otherNode); t++, o++)
+            for (t = o = 0; t < thisNodeEdgesCount && o < otherNodeEdgesCount; t++, o++)
             {
                 if (GetEdgeChar(otherNode, o) == c)
                 {
@@ -297,7 +298,7 @@ namespace OnlineDAWG
             }
             if (!had)
             {
-                if (t != GetNodeEdgesCount(thisNode) || o != GetNodeEdgesCount(otherNode) - 1 || c != GetEdgeChar(otherNode, o) || accepting != GetEdgeAccepting(otherNode, o))
+                if (t != thisNodeEdgesCount || o != otherNodeEdgesCount - 1 || c != GetEdgeChar(otherNode, o) || accepting != GetEdgeAccepting(otherNode, o))
                     return false;
                 if (!matchesOnly(GetEdgeNode(otherNode, o), add, from + 1))
                     return false;
@@ -308,27 +309,31 @@ namespace OnlineDAWG
 
         private void insertEdgeAt(DawgNodeIndex node, int pos)
         {
-            if (GetNodeEdgesCount(node) == 0)
+            var nodeEdgesCount = GetNodeEdgesCount(node);
+            if (nodeEdgesCount == 0)
             {
                 SetNodeEdgesOffset(node, _edges.Add(1));
-                SetNodeEdgesCount(node, (short) (GetNodeEdgesCount(node) + 1));
+                SetNodeEdgesCount(node, (short) (nodeEdgesCount + 1));
             }
             else
             {
-                var newOffset = _edges.Add(GetNodeEdgesCount(node) + 1);
-                Array.Copy(
-                    _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts], GetNodeEdgesOffset(node) & _edges._mask,
-                    _edges._chunks[newOffset >> _edges._shifts], newOffset & _edges._mask,
-                    pos);
-                if (pos < GetNodeEdgesCount(node))
-                    Array.Copy(
-                        _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts], (GetNodeEdgesOffset(node) & _edges._mask) + pos,
-                        _edges._chunks[newOffset >> _edges._shifts], (newOffset & _edges._mask) + pos + 1,
-                        GetNodeEdgesCount(node) - pos);
-                _edges.Reuse(GetNodeEdgesCount(node), GetNodeEdgesOffset(node));
+                var nodeEdgesOffset = GetNodeEdgesOffset(node);
+                var newOffset = _edges.Add(nodeEdgesCount + 1);
+                edgesCopy(nodeEdgesOffset, newOffset, pos);
+                if (pos < nodeEdgesCount)
+                    edgesCopy(nodeEdgesOffset + pos, newOffset + pos + 1, nodeEdgesCount - pos);
+                _edges.Reuse(nodeEdgesCount, nodeEdgesOffset);
                 SetNodeEdgesOffset(node, newOffset);
-                SetNodeEdgesCount(node, (short) (GetNodeEdgesCount(node) + 1));
+                SetNodeEdgesCount(node, (short) (nodeEdgesCount + 1));
             }
+        }
+
+        private void edgesCopy(int sourceOffset, int targetOffset, int count)
+        {
+            Array.Copy(
+                _edges._chunks[sourceOffset >> _edges._shifts], sourceOffset & _edges._mask,
+                _edges._chunks[targetOffset >> _edges._shifts], targetOffset & _edges._mask,
+                count);
         }
 
         private IEnumerable<DawgNodeIndex> getNodes()
