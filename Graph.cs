@@ -21,7 +21,7 @@ namespace OnlineDAWG
         private DawgNodeIndex _ending;
         private DawgHashTable _hashtable;
         private ChunkyNodeList _nodes = new ChunkyNodeList();
-        private ChunkyArrayList<DawgEdge> _edges = new ChunkyArrayList<DawgEdge>();
+        private ChunkyEdgeList _edges = new ChunkyEdgeList();
         private bool _containsEmpty = false;
 
         /// <summary>Gets the number of distinct "words" (values added with <see cref="Add"/>) that this graph accepts.</summary>
@@ -31,7 +31,7 @@ namespace OnlineDAWG
         /// <summary>Gets the number of edges in the graph.</summary>
         public int EdgeCount { get; private set; }
         /// <summary>Gets the approximate number of bytes consumed by this graph.</summary>
-        public long MemoryUsage { get { return (7 * IntPtr.Size + 2 * 4) * (long) NodeCount + (2 * IntPtr.Size) * (long) EdgeCount + _hashtable.MemoryUsage; } }
+        public long MemoryUsage { get { return _nodes.MemoryUsage + _edges.MemoryUsage + _hashtable.MemoryUsage; } }
 
         public DawgGraph()
         {
@@ -347,42 +347,42 @@ namespace OnlineDAWG
             }
         }
 
-        internal string NodeToString(DawgNodeIndex node)
+        private string NodeToString(DawgNodeIndex node)
         {
             return "Node: " + string.Join("|", Suffixes(node).Select(s => s == "" ? "<acc>" : s).ToArray());
         }
 
-        internal bool GetEdgeAccepting(DawgNodeIndex node, int index)
+        private bool GetEdgeAccepting(DawgNodeIndex node, int index)
         {
             return _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Accepting;
         }
 
-        internal char GetEdgeChar(DawgNodeIndex node, int index)
+        private char GetEdgeChar(DawgNodeIndex node, int index)
         {
             return _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Char;
         }
 
-        internal DawgNodeIndex GetEdgeNode(DawgNodeIndex node, int index)
+        private DawgNodeIndex GetEdgeNode(DawgNodeIndex node, int index)
         {
             return _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Node;
         }
 
-        internal void SetEdgeAccepting(DawgNodeIndex node, int index, bool value)
+        private void SetEdgeAccepting(DawgNodeIndex node, int index, bool value)
         {
             _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Accepting = value;
         }
 
-        internal void SetEdgeChar(DawgNodeIndex node, int index, char value)
+        private void SetEdgeChar(DawgNodeIndex node, int index, char value)
         {
             _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Char = value;
         }
 
-        internal void SetEdgeNode(DawgNodeIndex node, int index, DawgNodeIndex value)
+        private void SetEdgeNode(DawgNodeIndex node, int index, DawgNodeIndex value)
         {
             _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts][(GetNodeEdgesOffset(node) & _edges._mask) + index].Node = value;
         }
 
-        internal IEnumerable<DawgEdge> EnumEdges(DawgNodeIndex node)
+        private IEnumerable<DawgEdge> EnumEdges(DawgNodeIndex node)
         {
             if (GetNodeEdgesCount(node) == 0)
                 yield break;
@@ -391,17 +391,17 @@ namespace OnlineDAWG
                 yield return chunk[(GetNodeEdgesOffset(node) & _edges._mask) + i];
         }
 
-        internal int GetNodeEdgesOffset(DawgNodeIndex node)
+        private int GetNodeEdgesOffset(DawgNodeIndex node)
         {
             return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
         }
 
-        internal short GetNodeEdgesCount(DawgNodeIndex node)
+        private short GetNodeEdgesCount(DawgNodeIndex node)
         {
             return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesCount;
         }
 
-        internal int GetNodeRefCount(DawgNodeIndex node)
+        private int GetNodeRefCount(DawgNodeIndex node)
         {
             return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].RefCount;
         }
@@ -416,27 +416,27 @@ namespace OnlineDAWG
             return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].HashNext;
         }
 
-        internal void SetNodeEdgesOffset(DawgNodeIndex node, int value)
+        private void SetNodeEdgesOffset(DawgNodeIndex node, int value)
         {
             _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset = value;
         }
 
-        internal void SetNodeEdgesCount(DawgNodeIndex node, short value)
+        private void SetNodeEdgesCount(DawgNodeIndex node, short value)
         {
             _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesCount = value;
         }
 
-        internal int IncNodeRefCount(DawgNodeIndex node)
+        private int IncNodeRefCount(DawgNodeIndex node)
         {
             return ++_nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].RefCount;
         }
 
-        internal int DecNodeRefCount(DawgNodeIndex node)
+        private int DecNodeRefCount(DawgNodeIndex node)
         {
             return --_nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].RefCount;
         }
 
-        internal void SetNodeHash(DawgNodeIndex node, uint value)
+        private void SetNodeHash(DawgNodeIndex node, uint value)
         {
             _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].Hash = value;
         }
