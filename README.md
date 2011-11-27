@@ -22,12 +22,12 @@ For comparison, a {{{string[]}}} of the 98 million domain names consumes 2.5 GB 
 var g = new DawgGraph();
 g.Add("graphs");
 g.Add("are");
-g.Add("cool");
-g.Contains("graph"); // true
+g.Add("great");
+g.Contains("graphs"); // true
 g.Save("graph.dawg");
 
 var gr = DawgGraphReadonly.Load("graph.dawg");
-gr.Contains("cool"); // true
+gr.Contains("great"); // true
 }}}
 
 === License ===
