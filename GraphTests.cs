@@ -8,6 +8,7 @@
 // warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -20,51 +21,74 @@ namespace OnlineDAWG
         /// </summary>
         public void Verify()
         {
-            foreach (var grp in _nodes.GroupBy(n => n.Hash))
+            assert(NodeCount == _nodes.Count - _nodes.ReuseCount);
+            assert(EdgeCount == _edges.Count - _edges.ReuseCount);
+            foreach (var grp in _hashtable.GroupBy(n => GetNodeHash(n)))
             {
                 var arr = grp.ToArray();
                 for (int i = 0; i < arr.Length - 1; i++)
                     for (int j = i + 1; j < arr.Length; j++)
-                        if (arr[i] == (object) arr[j])
+                        if (arr[i] == arr[j])
                             throw new Exception("Duplicate nodes");
-                        else if (MatchesSame(arr[i], arr[j]))
+                        else if (matchesSame(arr[i], arr[j]))
                             throw new Exception("Graph is not optimal!");
             }
-            if (_nodes.Contains(_starting))
+            if (_hashtable.Contains(_starting))
                 throw new Exception("Starting node is in hash table!");
-            if (_nodes.Contains(_ending))
+            if (_hashtable.Contains(_ending))
                 throw new Exception("Ending node is in hash table!");
             verifyNode(_starting);
         }
 
-        private void verifyNode(DawgNode node)
+        private void verifyNode(DawgNodeIndex node)
         {
-            if (node == null)
+            if (node == DawgNodeIndex.Null)
                 throw new Exception("Null node!");
-            if (node != _starting && (node.Edges.Length != 0) && node.Hash != node.Suffixes().Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
+            if (GetNodeRefCount(node) < 0)
+                throw new Exception("Ref count negative");
+            if (node != _starting && (GetNodeEdgesCount(node) != 0) && GetNodeHash(node) != suffixes(node).Select(s => FnvHash(s)).Aggregate((cur, add) => cur ^ add))
                 throw new Exception("Wrong node hash");
-            else if (node.Edges.Length == 0)
+            else if (GetNodeEdgesCount(node) == 0)
             {
                 if (node != _ending)
                     throw new Exception("Blank accepting node != _ending");
             }
             else
             {
-                if (node != _starting && (!_nodes.GetValuesExact(node.Hash).Contains(node)))
+                if (node != _starting && (!_hashtable.GetValuesExact(GetNodeHash(node)).Contains(node)))
                     throw new Exception("Normal node not in hash table!");
-                foreach (var e in node.Edges)
+                foreach (var e in getEdges(node))
                     verifyNode(e.Node);
             }
         }
 
+        private IEnumerable<string> suffixes(DawgNodeIndex node)
+        {
+            return suffixes(node, "");
+        }
+
+        private IEnumerable<string> suffixes(DawgNodeIndex node, string prefix)
+        {
+            for (int i = 0; i < GetNodeEdgesCount(node); i++)
+            {
+                if (GetEdgeAccepting(node, i))
+                    yield return prefix + GetEdgeChar(node, i);
+                foreach (var suf in suffixes(GetEdgeNode(node, i), prefix + GetEdgeChar(node, i)))
+                    yield return suf;
+            }
+        }
+
+        /// <summary>
+        /// Performs self-tests of the <see cref="DawgGraph"/> and <see cref="DawgGraphReadonly"/> classes.
+        /// </summary>
         public static void SelfTest()
         {
             DawgGraph g;
 
             g = new DawgGraph();
-            g.Add("far"); g.Verify();
-            g.Add("xar"); g.Verify();
-            g.Add("fa"); g.Verify(); assert(g.NodeCount == 5); assert(g.EdgeCount == 5);
+            g.Add("far"); g.Verify(); assert(g.Contains("far"));
+            g.Add("xar"); g.Verify(); assert(g.Contains("far")); assert(g.Contains("xar"));
+            g.Add("fa"); g.Verify(); assert(g.Contains("far")); assert(g.Contains("xar")); assert(g.Contains("fa")); assert(g.NodeCount == 5); assert(g.EdgeCount == 5);
             g.Add("xa"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 4);
 
             g = new DawgGraph();
@@ -79,8 +103,8 @@ namespace OnlineDAWG
             g.Add("fo"); g.Verify();
             assert(g.WordCount == 3);
             assert(g.NodeCount == 4);
-            assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
+            assert(g.NodeCount == g.getNodes().Count());
+            assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
 
             g = new DawgGraph();
             g.Add("xac"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 3);
@@ -92,8 +116,8 @@ namespace OnlineDAWG
             g.Add("ybef"); g.Verify(); assert(g.NodeCount == 9); assert(g.EdgeCount == 11);
             g.Add("yacd"); g.Verify(); assert(g.NodeCount == 7); assert(g.EdgeCount == 8);
             assert(g.WordCount == 8);
-            assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
+            assert(g.NodeCount == g.getNodes().Count());
+            assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
 
             g = new DawgGraph();
             g.Add("xab"); g.Verify();
@@ -103,8 +127,8 @@ namespace OnlineDAWG
             g.Add("xabc"); g.Verify();
             assert(g.WordCount == 5);
             assert(g.NodeCount == 7);
-            assert(g.NodeCount == g.GetNodes().Count());
-            assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
+            assert(g.NodeCount == g.getNodes().Count());
+            assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
 
             var ms = new MemoryStream();
             g.Save(ms);

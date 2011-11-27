@@ -16,21 +16,28 @@ namespace OnlineDAWG
     /// Holds DAWG nodes and retrieves them by the hash, exposing direct access to the underlying buckets
     /// for maximum efficiency during enumeration.
     /// </summary>
-    class DawgHashTable : IEnumerable<DawgNode>
+    class DawgHashTable : IEnumerable<DawgNodeIndex>
     {
-        private DawgNode[] _table = new DawgNode[65536];
+        private DawgNodeIndex[] _table = new DawgNodeIndex[65536];
         private int _mask = 0xFFFF;
         private int _threshold = 65536 * 3;
+        private DawgGraph _graph;
+
         public int Count { get; private set; }
+
+        public DawgHashTable(DawgGraph graph)
+        {
+            _graph = graph;
+        }
 
         /// <summary>
         /// Adds the node to the hash table. No check is made for duplicate nodes; passing in duplicates will
         /// result in unspecified behaviour.
         /// </summary>
-        public void Add(DawgNode value)
+        public void Add(DawgNodeIndex value)
         {
-            int index = (int) (value.Hash & _mask);
-            value.HashNext = _table[index];
+            int index = (int) (_graph.GetNodeHash(value) & _mask);
+            _graph.SetNodeHashNext(value, _table[index]);
             _table[index] = value;
             Count++;
             if (Count > _threshold)
@@ -40,25 +47,25 @@ namespace OnlineDAWG
         /// <summary>
         /// Removes the specified node from the hash table.
         /// </summary>
-        public void Remove(DawgNode value)
+        public void Remove(DawgNodeIndex value)
         {
-            int index = (int) (value.Hash & _mask);
+            int index = (int) (_graph.GetNodeHash(value) & _mask);
             if (_table[index] == value)
             {
                 Count--;
-                _table[index] = _table[index].HashNext;
+                _table[index] = _graph.GetNodeHashNext(_table[index]);
                 return;
             }
             var node = _table[index];
-            while (node != null)
+            while (node != DawgNodeIndex.Null)
             {
-                if (node.HashNext == value)
+                if (_graph.GetNodeHashNext(node) == value)
                 {
                     Count--;
-                    node.HashNext = node.HashNext.HashNext;
+                    _graph.SetNodeHashNext(node, _graph.GetNodeHashNext(_graph.GetNodeHashNext(node)));
                     return;
                 }
-                node = node.HashNext;
+                node = _graph.GetNodeHashNext(node);
             }
         }
 
@@ -68,34 +75,34 @@ namespace OnlineDAWG
             _mask = ((_mask + 1) << 1) - 1;
             _threshold *= 2;
             var old = _table;
-            _table = new DawgNode[old.Length * 2];
+            _table = new DawgNodeIndex[old.Length * 2];
             // Redistribute all the nodes into the new buckets
             for (int o = 0; o < old.Length; o++)
             {
                 var n = old[o];
-                while (n != null)
+                while (n != DawgNodeIndex.Null)
                 {
-                    var next = n.HashNext;
-                    int index = (int) (n.Hash & _mask);
-                    n.HashNext = _table[index];
+                    var next = _graph.GetNodeHashNext(n);
+                    int index = (int) (_graph.GetNodeHash(n) & _mask);
+                    _graph.SetNodeHashNext(n, _table[index]);
                     _table[index] = n;
                     n = next;
                 }
-                old[o] = null;
+                old[o] = DawgNodeIndex.Null;
             }
         }
 
         /// <summary>
         /// Enumerates all DAWG nodes that have the specified hash.
         /// </summary>
-        public IEnumerable<DawgNode> GetValuesExact(uint hash)
+        public IEnumerable<DawgNodeIndex> GetValuesExact(uint hash)
         {
             var node = GetFirstInBucket(hash);
-            while (node != null)
+            while (node != DawgNodeIndex.Null)
             {
-                if (node.Hash == hash)
+                if (_graph.GetNodeHash(node) == hash)
                     yield return node;
-                node = node.HashNext;
+                node = _graph.GetNodeHashNext(node);
             }
         }
 
@@ -103,21 +110,21 @@ namespace OnlineDAWG
         /// Returns a list that contains all nodes with the specified hash, and potentially other nodes.
         /// This list must not be modified as it holds the actual data for the hash table.
         /// </summary>
-        public DawgNode GetFirstInBucket(uint hash)
+        public DawgNodeIndex GetFirstInBucket(uint hash)
         {
             int index = (int) (hash & _mask);
             return _table[index];
         }
 
-        public IEnumerator<DawgNode> GetEnumerator()
+        public IEnumerator<DawgNodeIndex> GetEnumerator()
         {
             for (int h = 0; h < _table.Length; h++)
             {
                 var node = _table[h];
-                while (node != null)
+                while (node != DawgNodeIndex.Null)
                 {
                     yield return node;
-                    node = node.HashNext;
+                    node = _graph.GetNodeHashNext(node);
                 }
             }
         }
