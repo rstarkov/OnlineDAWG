@@ -57,21 +57,11 @@ namespace OnlineDAWG
     class ChunkyNodeList
     {
         internal DawgNode[][] _chunks = new DawgNode[4][];
-        internal int _chunkSize, _shifts, _mask;
+        internal const int _shifts = 16, _chunkSize = 1 << _shifts, _mask = _chunkSize - 1;
+        private const int _reuseInitial = 64;
         private DawgNodeIndex _next = (DawgNodeIndex) 1;
-        private DawgNodeIndex[] _reuse;
+        private DawgNodeIndex[] _reuse = new DawgNodeIndex[_reuseInitial];
         private int _reuseCount = 0;
-
-        /// <summary>Constructor.</summary>
-        /// <param name="chunkSizeExponent">For performance tuning. Number of elements per chunk is 2^this value.</param>
-        /// <param name="reuseCapacity">For performance tuning. The initial capacity of the reuse list.</param>
-        public ChunkyNodeList(int chunkSizeExponent = 16, int reuseCapacity = 65536)
-        {
-            _shifts = chunkSizeExponent;
-            _chunkSize = 1 << _shifts;
-            _mask = _chunkSize - 1;
-            _reuse = new DawgNodeIndex[Math.Max(reuseCapacity, 1)];
-        }
 
         /// <summary>
         /// Adds an to the list and returns its index. If any elements were marked for reuse, the count
@@ -130,22 +120,12 @@ namespace OnlineDAWG
     class ChunkyEdgeList
     {
         internal DawgEdge[][] _chunks = new DawgEdge[4][];
-        internal int _chunkSize, _shifts, _mask;
+        internal const int _shifts = 16, _chunkSize = 1 << _shifts, _mask = _chunkSize - 1;
+        private const int _reuseInitial = 64;
+        private const int _lengthsInitial = 32;
         private int _next = 0;
-        private int[][] _reuse = new int[64][];
-        private int[] _reuseCount = new int[64];
-
-        /// <summary>Constructor.</summary>
-        /// <param name="chunkSizeExponent">For performance tuning. Number of elements per chunk is 2^this value.</param>
-        /// <param name="reuseCapacity">For performance tuning. The initial capacity of the reuse list.</param>
-        public ChunkyEdgeList(int chunkSizeExponent = 17, int reuseCapacity = 65536)
-        {
-            _shifts = chunkSizeExponent;
-            _chunkSize = 1 << _shifts;
-            _mask = _chunkSize - 1;
-            for (int i = 0; i < _reuse.Length; i++)
-                _reuse[i] = new int[Math.Max(reuseCapacity, 1)];
-        }
+        private int[][] _reuse = new int[_lengthsInitial][];
+        private int[] _reuseCount = new int[_lengthsInitial];
 
         /// <summary>
         /// Adds an element to the list and returns its index. If any elements were marked for reuse, the count
@@ -153,9 +133,13 @@ namespace OnlineDAWG
         /// </summary>
         public int Add(int length)
         {
+            while (length >= _reuse.Length)
+            {
+                Array.Resize(ref _reuse, _reuse.Length * 2);
+                Array.Resize(ref _reuseCount, _reuseCount.Length * 2);
+            }
             if (_reuseCount[length] > 0)
                 return _reuse[length][--_reuseCount[length]];
-#warning Experiment with reusing a larger free sequence
 
             int li = _next >> _shifts;
             if (li >= _chunks.Length)
@@ -188,6 +172,8 @@ namespace OnlineDAWG
         /// </summary>
         public void Reuse(int length, int index)
         {
+            if (_reuse[length] == null)
+                _reuse[length] = new int[_reuseInitial];
             if (_reuseCount[length] >= _reuse[length].Length)
                 Array.Resize(ref _reuse[length], _reuse[length].Length * 2);
             _reuse[length][_reuseCount[length]++] = index;
@@ -204,7 +190,7 @@ namespace OnlineDAWG
             {
                 return 5 * IntPtr.Size + 4 * 4
                     + (3 * IntPtr.Size + _chunks.Length * IntPtr.Size + _chunks.Where(a => a != null).Sum(a => 3 * IntPtr.Size + a.LongLength * 8))
-                    + (3 * IntPtr.Size + _reuse.Sum(a => 4 * IntPtr.Size + a.LongLength * 4))
+                    + (3 * IntPtr.Size + _reuse.Length * IntPtr.Size + _reuse.Where(a => a != null).Sum(a => 3 * IntPtr.Size + a.LongLength * 4))
                     + (3 * IntPtr.Size + _reuseCount.LongLength * 4);
             }
         }

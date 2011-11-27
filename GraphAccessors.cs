@@ -16,10 +16,10 @@ namespace OnlineDAWG
         {
             if (node != _cachedEdgeFor)
             {
-                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                int offset = _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset;
                 _cachedEdgeFor = node;
-                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
-                _cachedEdgeIndex = offset & _edges._mask;
+                _cachedEdgeChunk = _edges._chunks[offset >> ChunkyEdgeList._shifts];
+                _cachedEdgeIndex = offset & ChunkyEdgeList._mask;
             }
             return _cachedEdgeChunk[_cachedEdgeIndex + index].Accepting;
         }
@@ -28,10 +28,10 @@ namespace OnlineDAWG
         {
             if (node != _cachedEdgeFor)
             {
-                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                int offset = _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset;
                 _cachedEdgeFor = node;
-                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
-                _cachedEdgeIndex = offset & _edges._mask;
+                _cachedEdgeChunk = _edges._chunks[offset >> ChunkyEdgeList._shifts];
+                _cachedEdgeIndex = offset & ChunkyEdgeList._mask;
             }
             return _cachedEdgeChunk[_cachedEdgeIndex + index].Char;
         }
@@ -40,10 +40,10 @@ namespace OnlineDAWG
         {
             if (node != _cachedEdgeFor)
             {
-                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                int offset = _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset;
                 _cachedEdgeFor = node;
-                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
-                _cachedEdgeIndex = offset & _edges._mask;
+                _cachedEdgeChunk = _edges._chunks[offset >> ChunkyEdgeList._shifts];
+                _cachedEdgeIndex = offset & ChunkyEdgeList._mask;
             }
             return _cachedEdgeChunk[_cachedEdgeIndex + index].Node;
         }
@@ -52,10 +52,10 @@ namespace OnlineDAWG
         {
             if (node != _cachedEdgeFor)
             {
-                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                int offset = _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset;
                 _cachedEdgeFor = node;
-                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
-                _cachedEdgeIndex = offset & _edges._mask;
+                _cachedEdgeChunk = _edges._chunks[offset >> ChunkyEdgeList._shifts];
+                _cachedEdgeIndex = offset & ChunkyEdgeList._mask;
             }
             _cachedEdgeChunk[_cachedEdgeIndex + index].Accepting = value;
         }
@@ -64,10 +64,10 @@ namespace OnlineDAWG
         {
             if (node != _cachedEdgeFor)
             {
-                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                int offset = _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset;
                 _cachedEdgeFor = node;
-                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
-                _cachedEdgeIndex = offset & _edges._mask;
+                _cachedEdgeChunk = _edges._chunks[offset >> ChunkyEdgeList._shifts];
+                _cachedEdgeIndex = offset & ChunkyEdgeList._mask;
             }
             _cachedEdgeChunk[_cachedEdgeIndex + index].Char = value;
         }
@@ -76,68 +76,68 @@ namespace OnlineDAWG
         {
             if (node != _cachedEdgeFor)
             {
-                int offset = _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+                int offset = _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset;
                 _cachedEdgeFor = node;
-                _cachedEdgeChunk = _edges._chunks[offset >> _edges._shifts];
-                _cachedEdgeIndex = offset & _edges._mask;
+                _cachedEdgeChunk = _edges._chunks[offset >> ChunkyEdgeList._shifts];
+                _cachedEdgeIndex = offset & ChunkyEdgeList._mask;
             }
             _cachedEdgeChunk[_cachedEdgeIndex + index].Node = value;
         }
 
         private int GetNodeEdgesOffset(DawgNodeIndex node)
         {
-            return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset;
+            return _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset;
         }
 
         private short GetNodeEdgesCount(DawgNodeIndex node)
         {
-            return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesCount;
+            return _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesCount;
         }
 
         private int GetNodeRefCount(DawgNodeIndex node)
         {
-            return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].RefCount;
+            return _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].RefCount;
         }
 
         internal uint GetNodeHash(DawgNodeIndex node)
         {
-            return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].Hash;
+            return _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].Hash;
         }
 
         internal DawgNodeIndex GetNodeHashNext(DawgNodeIndex node)
         {
-            return _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].HashNext;
+            return _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].HashNext;
         }
 
         private void SetNodeEdgesOffset(DawgNodeIndex node, int value)
         {
             if (_cachedEdgeFor == node) _cachedEdgeFor = DawgNodeIndex.Null;
-            _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesOffset = value;
+            _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesOffset = value;
         }
 
         private void SetNodeEdgesCount(DawgNodeIndex node, short value)
         {
-            _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].EdgesCount = value;
+            _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].EdgesCount = value;
         }
 
         private int IncNodeRefCount(DawgNodeIndex node)
         {
-            return ++_nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].RefCount;
+            return ++_nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].RefCount;
         }
 
         private int DecNodeRefCount(DawgNodeIndex node)
         {
-            return --_nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].RefCount;
+            return --_nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].RefCount;
         }
 
         private void SetNodeHash(DawgNodeIndex node, uint value)
         {
-            _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].Hash = value;
+            _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].Hash = value;
         }
 
         internal void SetNodeHashNext(DawgNodeIndex node, DawgNodeIndex value)
         {
-            _nodes._chunks[(int) node >> _nodes._shifts][(int) node & _nodes._mask].HashNext = value;
+            _nodes._chunks[(int) node >> ChunkyNodeList._shifts][(int) node & ChunkyNodeList._mask].HashNext = value;
         }
 
     }

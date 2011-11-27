@@ -331,8 +331,8 @@ namespace OnlineDAWG
         private void edgesCopy(int sourceOffset, int targetOffset, int count)
         {
             Array.Copy(
-                _edges._chunks[sourceOffset >> _edges._shifts], sourceOffset & _edges._mask,
-                _edges._chunks[targetOffset >> _edges._shifts], targetOffset & _edges._mask,
+                _edges._chunks[sourceOffset >> ChunkyEdgeList._shifts], sourceOffset & ChunkyEdgeList._mask,
+                _edges._chunks[targetOffset >> ChunkyEdgeList._shifts], targetOffset & ChunkyEdgeList._mask,
                 count);
         }
 
@@ -349,9 +349,9 @@ namespace OnlineDAWG
         {
             if (GetNodeEdgesCount(node) == 0)
                 yield break;
-            var chunk = _edges._chunks[GetNodeEdgesOffset(node) >> _edges._shifts];
+            var chunk = _edges._chunks[GetNodeEdgesOffset(node) >> ChunkyEdgeList._shifts];
             for (int i = 0; i < GetNodeEdgesCount(node); i++)
-                yield return chunk[(GetNodeEdgesOffset(node) & _edges._mask) + i];
+                yield return chunk[(GetNodeEdgesOffset(node) & ChunkyEdgeList._mask) + i];
         }
 
         private static uint FnvHash(string str, int from = 0)
