@@ -15,24 +15,20 @@ namespace OnlineDAWG
 {
     struct DawgEdge
     {
-        public DawgNode Node;
+        public DawgNodeIndex Node;
         public char Char;
         public bool Accepting;
         public override string ToString() { return string.Format("char={0}, accept={1}", Char, Accepting); }
     }
 
-    class DawgNode
+    struct DawgNode
     {
         public int EdgesOffset;
         public short EdgesCount;
         public int RefCount;
-        public uint Hash = 0;
-        public DawgNode HashNext;
-
-        public DawgNode(short edgesCount, int edgesOffset)
-        {
-            EdgesCount = edgesCount;
-            EdgesOffset = edgesOffset;
-        }
+        public uint Hash;
+        public DawgNodeIndex HashNext;
     }
+
+    enum DawgNodeIndex { Null = 0 }
 }
