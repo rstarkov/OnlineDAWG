@@ -27,7 +27,7 @@ namespace OnlineDAWG
                     for (int j = i + 1; j < arr.Length; j++)
                         if (arr[i] == (object) arr[j])
                             throw new Exception("Duplicate nodes");
-                        else if (arr[i].MatchesSame(arr[j]))
+                        else if (MatchesSame(arr[i], arr[j]))
                             throw new Exception("Graph is not optimal!");
             }
             if (_nodes.Contains(_starting))
@@ -83,7 +83,7 @@ namespace OnlineDAWG
             assert(g.EdgeCount == g.GetNodes().Sum(n => n.Edges.Length));
 
             g = new DawgGraph();
-            g.Add("xac"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount== 3);
+            g.Add("xac"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 3);
             g.Add("xacd"); g.Verify(); assert(g.NodeCount == 5); assert(g.EdgeCount == 4);
             g.Add("xbe"); g.Verify(); assert(g.NodeCount == 6); assert(g.EdgeCount == 6);
             g.Add("xbef"); g.Verify(); assert(g.NodeCount == 7); assert(g.EdgeCount == 7);

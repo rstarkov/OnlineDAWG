@@ -93,7 +93,7 @@ namespace OnlineDAWG
                 nextHash = FnvHash(value, from + 1);
                 var wantedHash = node.Edges[n].Node.Hash ^ nextHash;
                 for (var candidate = _nodes.GetFirstInBucket(wantedHash); candidate != null; candidate = candidate.HashNext)
-                    if (candidate.Hash == wantedHash && node.Edges[n].Node.MatchesSameWithAdd(value, from + 1, candidate))
+                    if (candidate.Hash == wantedHash && MatchesSameWithAdd(node.Edges[n].Node, value, from + 1, candidate))
                     {
                         var old = node.Edges[n].Node;
                         node.Edges[n].Node = candidate;
@@ -193,7 +193,7 @@ namespace OnlineDAWG
                 var n = _nodes.GetFirstInBucket(hash);
                 while (n != null)
                 {
-                    if (n.Hash == hash && n.MatchesOnly(value, from))
+                    if (n.Hash == hash && MatchesOnly(n, value, from))
                     {
                         node.Edges[edge].Node = n;
                         n.RefCount++;
@@ -209,6 +209,83 @@ namespace OnlineDAWG
                 node.RefCount++;
                 _nodes.Add(node);
             }
+        }
+
+        private bool MatchesOnly(DawgNode node, string value, int from)
+        {
+            for (; from < value.Length; from++)
+            {
+                if (node.Edges.Length != 1) return false;
+                if (node.Edges[0].Char != value[from]) return false;
+                if (node.Edges[0].Accepting != (from == value.Length - 1)) return false;
+                node = node.Edges[0].Node;
+            }
+            return node.Edges.Length == 0;
+        }
+
+        private bool MatchesSame(DawgNode thisNode, DawgNode otherNode)
+        {
+            if (thisNode.Edges.Length != otherNode.Edges.Length)
+                return false;
+            for (int i = 0; i < thisNode.Edges.Length; i++)
+                if (thisNode.Edges[i].Char != otherNode.Edges[i].Char || thisNode.Edges[i].Accepting != otherNode.Edges[i].Accepting)
+                    return false;
+            for (int i = 0; i < thisNode.Edges.Length; i++)
+                if (!MatchesSame(thisNode.Edges[i].Node, otherNode.Edges[i].Node))
+                    return false;
+            return true;
+        }
+
+        private bool MatchesSameWithAdd(DawgNode thisNode, string add, int from, DawgNode otherNode)
+        {
+            if (from == add.Length)
+                return MatchesSame(thisNode, otherNode);
+            if (thisNode.Edges.Length < otherNode.Edges.Length - 1 || thisNode.Edges.Length > otherNode.Edges.Length)
+                return false;
+
+            char c = add[from];
+            bool accepting = from == add.Length - 1;
+            bool had = false;
+            int t, o;
+            for (t = o = 0; t < thisNode.Edges.Length && o < otherNode.Edges.Length; t++, o++)
+            {
+                if (otherNode.Edges[o].Char == c)
+                {
+                    had = true;
+                    if (thisNode.Edges[t].Char == c)
+                    {
+                        if ((accepting || thisNode.Edges[t].Accepting) != otherNode.Edges[o].Accepting)
+                            return false;
+                        if (!MatchesSameWithAdd(thisNode.Edges[t].Node, add, from + 1, otherNode.Edges[o].Node))
+                            return false;
+                    }
+                    else
+                    {
+                        if (accepting != otherNode.Edges[o].Accepting)
+                            return false;
+                        if (!MatchesOnly(otherNode.Edges[o].Node, add, from + 1))
+                            return false;
+                        t--;
+                    }
+                }
+                else if (thisNode.Edges[t].Char == c)
+                    return false;
+                else if (thisNode.Edges[t].Char != otherNode.Edges[o].Char)
+                    return false;
+                else if (thisNode.Edges[t].Accepting != otherNode.Edges[o].Accepting)
+                    return false;
+                else if (!MatchesSame(thisNode.Edges[t].Node, otherNode.Edges[o].Node))
+                    return false;
+            }
+            if (!had)
+            {
+                if (t != thisNode.Edges.Length || o != otherNode.Edges.Length - 1 || c != otherNode.Edges[o].Char || accepting != otherNode.Edges[o].Accepting)
+                    return false;
+                if (!MatchesOnly(otherNode.Edges[o].Node, add, from + 1))
+                    return false;
+            }
+
+            return true;
         }
 
         private static uint FnvHash(string str, int from = 0)
