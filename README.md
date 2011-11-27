@@ -8,9 +8,9 @@ This library exposes two major classes: {{{DawgGraph}}} and {{{DawgGraphReadonly
 
 === Efficiency ===
 
-A sorted dictionary of 180,000 English words can be turned into a {{{DawgGraph}}} in less than half a second, and consumes roughly 3 MB of memory. A {{{DawgGraphReadonly}}} with the same set of words consumes just under 1 MB of memory.
+A sorted dictionary of 180,000 English words can be turned into a {{{DawgGraph}}} in a quarter of a second, and consumes roughly 3 MB of memory. A {{{DawgGraphReadonly}}} with the same set of words consumes just under 1 MB of memory.
 
-An unsorted collection of 98 million domain registrations can be imported into a {{{DawgGraph}}} in a couple of hours and requires roughly 6 GB on a 64-bit machine. Saved to disk, this graph takes 510 MB of disk space. Loaded to a {{{DawgGraphReadonly}}}, just over 1 GB of RAM is consumed – well within the capabilities of a 32-bit machine.
+An unsorted collection of 98 million domain registrations can be imported into a {{{DawgGraph}}} in 20 minutes and requires roughly 2 GB of RAM. Saved to disk, this graph takes 510 MB of disk space. Loaded to a {{{DawgGraphReadonly}}}, just over 1 GB of RAM is consumed – well within the capabilities of a 32-bit machine.
 
 For comparison, a {{{string[]}}} of the 98 million domain names consumes 2.5 GB in character data alone. Additionally, the .NET string instance overhead, which would total 1.5 GB on a 32-bit platform, means that this data cannot fit into the address space of a 32-bit process, requiring the use of a 64-bit machine and doubling the overhead to 3 GB, for a total of 5.5 GB.
 
