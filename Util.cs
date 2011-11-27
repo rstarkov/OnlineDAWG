@@ -128,8 +128,8 @@ namespace OnlineDAWG
         private int[] _reuseCount = new int[_lengthsInitial];
 
         /// <summary>
-        /// Adds an element to the list and returns its index. If any elements were marked for reuse, the count
-        /// won't increase, and one of those elements will be reused instead.
+        /// Adds a set to the list and returns the index of the first element. If any sets were marked for reuse, the count
+        /// won't increase, and one of those sets will be reused instead.
         /// </summary>
         public int Add(int length)
         {
@@ -138,8 +138,17 @@ namespace OnlineDAWG
                 Array.Resize(ref _reuse, _reuse.Length * 2);
                 Array.Resize(ref _reuseCount, _reuseCount.Length * 2);
             }
+            // Try to reuse a set at this exact size
             if (_reuseCount[length] > 0)
                 return _reuse[length][--_reuseCount[length]];
+            // Try to reuse a longer set, returning the rest to the reuse pool
+            for (int l = length + 1; l < _reuseCount.Length; l++)
+                if (_reuseCount[l] > 0)
+                {
+                    var res = _reuse[l][--_reuseCount[l]];
+                    Reuse(l - length, res + length);
+                    return res;
+                }
 
             int li = _next >> _shifts;
             if (li >= _chunks.Length)
