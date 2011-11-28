@@ -131,6 +131,6 @@ namespace OnlineDAWG
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
 
-        public long MemoryUsage { get { return System.IntPtr.Size * (_table.Length + 3 + 4); } }
+        public long MemoryUsage { get { return System.IntPtr.Size * (3 + 4) + _table.Length * 4; } }
     }
 }
