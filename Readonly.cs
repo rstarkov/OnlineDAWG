@@ -7,6 +7,7 @@
 // This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 // warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
+using System;
 using System.IO;
 using System.Text;
 
@@ -72,6 +73,10 @@ namespace OnlineDAWG
             result._startingIndex = nodeFirstEdgeIndex[result._startingIndex];
             for (int i = 0; i < result._edges.Length; i++)
                 result._edges[i].EdgesIndex = nodeFirstEdgeIndex[result._edges[i].EdgesIndex];
+
+            // Force a GC if an array of more than 40 MB has just gone out of scope (nodeFirstEdgeIndex)
+            if (result.NodeCount > 10000000)
+                GC.Collect();
 
             return result;
         }
