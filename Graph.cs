@@ -524,5 +524,66 @@ namespace OnlineDAWG
             throw new NotImplementedException();
         }
 
+        public static void Upgrade(Stream input, Stream output)
+        {
+            // Header
+            var buf = new byte[64];
+            Util.FillBuffer(input, buf, 0, 6);
+            if (Encoding.UTF8.GetString(buf, 0, 6) != "DAWG.1")
+                throw new InvalidDataException();
+            long outputStart = output.Position;
+            output.Write(Encoding.UTF8.GetBytes("DAWG.2"), 0, 6);
+
+            // Charset
+            uint charCount = Util.OptimRead(input);
+            Util.OptimWrite(output, charCount);
+            for (int i = 0; i < charCount; i++)
+                Util.OptimWrite(output, Util.OptimRead(input));
+
+            // Counts etc.
+            Util.OptimWrite(output, Util.OptimRead(input)); // edges
+            uint nodeCount = Util.OptimRead(input);
+            Util.OptimWrite(output, nodeCount); // nodes
+            Util.OptimWrite(output, Util.OptimRead(input)); // words
+            Util.OptimWrite(output, Util.OptimRead(input)); // contains empty
+            Util.OptimWrite(output, Util.OptimRead(input)); // starting index
+
+            // Offset to the seek index
+            long outputSeekOffsetAt = output.Position;
+            output.Position += 8; // unknown at the moment, so reserve 8 bytes for it
+
+            int seekIndexInterval = 10; // can be anything, but 10 allows quicker seeks while maximizing the Optim encoding benefits
+            // (at 10, to halve the index size one needs to triple the interval to 30)
+
+            var seekIndex = new long[(nodeCount + seekIndexInterval - 1) / seekIndexInterval];
+            for (int n = 0; n < nodeCount; n++)
+            {
+                if (n % seekIndexInterval == 0)
+                    seekIndex[n / seekIndexInterval] = output.Position - outputStart;
+                uint edgeCount = Util.OptimRead(input);
+                Util.OptimWrite(output, edgeCount);
+                for (int e = 0; e < edgeCount; e++)
+                {
+                    Util.OptimWrite(output, Util.OptimRead(input));
+                    Util.OptimWrite(output, Util.OptimRead(input));
+                }
+            }
+
+            // Patch in the seek index position
+            long seekIndexAt = output.Position;
+            output.Position = outputSeekOffsetAt;
+            output.Write(BitConverter.GetBytes(seekIndexAt - outputStart), 0, 8);
+            output.Position = seekIndexAt;
+
+            // Write the seek index
+            Util.OptimWrite(output, (uint) seekIndexInterval);
+            Util.OptimWrite(output, (uint) seekIndex.Length);
+            long prev = 0;
+            foreach (var pos in seekIndex)
+            {
+                Util.OptimWrite(output, (uint) ((pos - outputStart) - prev));
+                prev = pos - outputStart;
+            }
+        }
     }
 }

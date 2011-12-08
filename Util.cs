@@ -57,6 +57,20 @@ namespace OnlineDAWG
             }
             return res;
         }
+
+        public static void OptimSkip(Stream stream, int count)
+        {
+            for (int c = 0; c < count; c++)
+            {
+                byte b = 255;
+                while (b > 127)
+                {
+                    int read = stream.ReadByte();
+                    if (read < 0) throw new InvalidOperationException("Unexpected end of stream (#25753)");
+                    b = (byte) read;
+                }
+            }
+        }
     }
 
     /// <summary>
