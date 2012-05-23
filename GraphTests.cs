@@ -90,12 +90,14 @@ namespace OnlineDAWG
             g.Add("xar"); g.Verify(); assert(g.Contains("far")); assert(g.Contains("xar"));
             g.Add("fa"); g.Verify(); assert(g.Contains("far")); assert(g.Contains("xar")); assert(g.Contains("fa")); assert(g.NodeCount == 5); assert(g.EdgeCount == 5);
             g.Add("xa"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 4);
+            assertEnum(g, "fa", "far", "xa", "xar");
 
             g = new DawgGraph();
             g.Add("acde"); g.Verify();
             g.Add("acf"); g.Verify();
             g.Add("bcde"); g.Verify(); assert(g.NodeCount == 7); assert(g.EdgeCount == 8);
             g.Add("bcf"); g.Verify(); assert(g.NodeCount == 5); assert(g.EdgeCount == 6);
+            assertEnum(g, "acde", "acf", "bcde", "bcf");
 
             g = new DawgGraph();
             g.Add("fos"); g.Verify();
@@ -105,6 +107,7 @@ namespace OnlineDAWG
             assert(g.NodeCount == 4);
             assert(g.NodeCount == g.getNodes().Count());
             assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
+            assertEnum(g, "as", "fo", "fos");
 
             g = new DawgGraph();
             g.Add("xac"); g.Verify(); assert(g.NodeCount == 4); assert(g.EdgeCount == 3);
@@ -118,6 +121,7 @@ namespace OnlineDAWG
             assert(g.WordCount == 8);
             assert(g.NodeCount == g.getNodes().Count());
             assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
+            assertEnum(g, "xac", "xacd", "xbe", "xbef", "yac", "yacd", "ybe", "ybef");
 
             g = new DawgGraph();
             g.Add("xab"); g.Verify();
@@ -129,6 +133,7 @@ namespace OnlineDAWG
             assert(g.NodeCount == 7);
             assert(g.NodeCount == g.getNodes().Count());
             assert(g.EdgeCount == g.getNodes().Sum(n => g.GetNodeEdgesCount(n)));
+            assertEnum(g, "xab", "xabc", "xac", "yab", "yac");
 
             var ms = new MemoryStream();
             g.Save(ms);
@@ -158,6 +163,11 @@ namespace OnlineDAWG
         {
             if (!p)
                 throw new Exception("DawgGraph SelfTest failed.");
+        }
+
+        private static void assertEnum(DawgGraph g, params string[] values)
+        {
+            assert(g.SequenceEqual(values));
         }
     }
 }

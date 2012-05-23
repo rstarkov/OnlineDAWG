@@ -15,7 +15,7 @@ using System.Text;
 
 namespace OnlineDAWG
 {
-    public partial class DawgGraph
+    public partial class DawgGraph : IEnumerable<string>
     {
         private DawgNodeIndex _starting;
         private DawgNodeIndex _ending;
@@ -524,5 +524,60 @@ namespace OnlineDAWG
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// Enumerates all words currently in the graph, in lexicographical order.
+        /// </summary>
+        public IEnumerator<string> GetEnumerator()
+        {
+            var stack = new List<enumerationState>();
+            for (int i = 0; i < 16; i++)
+                stack.Add(new enumerationState());
+            stack[0].Node = _starting;
+            stack[0].Edge = 0;
+            stack[0].EdgeCount = GetNodeEdgesCount(_starting);
+            stack[0].SoFar = "";
+            int pos = 0;
+            while (pos >= 0)
+            {
+                var cur = stack[pos];
+                if (cur.Edge >= cur.EdgeCount)
+                {
+                    pos--;
+                    continue;
+                }
+
+                var edgeChar = GetEdgeChar(cur.Node, cur.Edge);
+                var edgeAccept = GetEdgeAccepting(cur.Node, cur.Edge);
+
+                pos++;
+                if (pos >= stack.Count)
+                    for (int i = 0; i < 16; i++)
+                        stack.Add(new enumerationState());
+                var next = stack[pos];
+
+                next.Node = GetEdgeNode(cur.Node, cur.Edge);
+                next.Edge = 0;
+                next.EdgeCount = GetNodeEdgesCount(next.Node);
+                next.SoFar = cur.SoFar + edgeChar;
+
+                cur.Edge++;
+
+                if (edgeAccept)
+                    yield return next.SoFar;
+            }
+        }
+
+        private class enumerationState
+        {
+            public DawgNodeIndex Node;
+            public int Edge;
+            public int EdgeCount;
+            public string SoFar;
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
     }
 }
