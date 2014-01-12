@@ -14,7 +14,9 @@ An unsorted collection of 98 million domain registrations can be imported into a
 
 For comparison, a {{{string[]}}} of the 98 million domain names consumes 2.5 GB in character data alone. Additionally, the .NET string instance overhead, which would total 1.5 GB on a 32-bit platform, means that this data cannot fit into the address space of a 32-bit process, requiring the use of a 64-bit machine and doubling the overhead to 3 GB, for a total of 5.5 GB.
 
-Lookups in the form of {{{Contains("someword")}}} take on the order of 200 nanoseconds on this 98 million entry dataset - that's about 5 million lookups per second.
+Lookups in the form of {{{Contains("someword")}}} take on the order of 200 nanoseconds on this 98 million entry dataset – that's about 5 million lookups per second.
+
+A third variant, {{{DawgGraphStreamed}}}, does not load the entire DAWG into RAM, and instead performs all lookups directly on disk, relying on the OS to perform efficient caching. This variant requires roughly 20 microseconds per lookup on the 98 million entry dataset (on average), although it helps that the OS has enough RAM to cache the file in its entirety. {{{DawgGraphStreamed}}} is only available on the unfinished "indexed" branch.
 
 === Example ===
 
