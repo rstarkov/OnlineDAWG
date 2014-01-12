@@ -10,11 +10,11 @@ This library exposes two major classes: {{{DawgGraph}}} and {{{DawgGraphReadonly
 
 A sorted dictionary of 180,000 English words can be turned into a {{{DawgGraph}}} in a quarter of a second, and consumes roughly 3 MB of memory. A {{{DawgGraphReadonly}}} with the same set of words consumes just under 1 MB of memory.
 
-An unsorted collection of 98 million domain registrations can be imported into a {{{DawgGraph}}} in 20 minutes and requires roughly 2 GB of RAM. Saved to disk, this graph takes 510 MB of disk space. Loaded to a {{{DawgGraphReadonly}}}, just over 1 GB of RAM is consumed – well within the capabilities of a 32-bit machine.
+An unsorted collection of 98 million domain registrations can be imported into a {{{DawgGraph}}} in 20 minutes and requires roughly 2 GB of RAM. Saved to disk, this graph takes 510 MB of disk space. Loading from disk to a {{{DawgGraphReadonly}}} takes a few seconds, with just over 1 GB of RAM consumed – well within the capabilities of a 32-bit machine.
 
 For comparison, a {{{string[]}}} of the 98 million domain names consumes 2.5 GB in character data alone. Additionally, the .NET string instance overhead, which would total 1.5 GB on a 32-bit platform, means that this data cannot fit into the address space of a 32-bit process, requiring the use of a 64-bit machine and doubling the overhead to 3 GB, for a total of 5.5 GB.
 
-Once a DAWG is constructed, the aforementioned 98 million records take only a few seconds to be loaded into {{{DawgGraphReadonly}}}, and a single {{{Contains("someword")}}}-style lookup takes on the order of 200 nanoseconds - that's about 5 million lookups per second.
+Lookups in the form of {{{Contains("someword")}}} take on the order of 200 nanoseconds on this 98 million entry dataset - that's about 5 million lookups per second.
 
 === Example ===
 
